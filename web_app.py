@@ -106,10 +106,19 @@ def process_video_async(job_id, video_path, ideal_data):
         )
         
         # Process the video
+        print(f"DEBUG: Starting analysis for job {job_id}")
         analysis_results = process_video_for_analysis(job, ideal_data)
+        print(f"DEBUG: Analysis completed for job {job_id}. Results: {type(analysis_results)}")
+        
+        if analysis_results:
+            print(f"DEBUG: Analysis results keys: {analysis_results.keys()}")
+        else:
+            print(f"DEBUG: Analysis results is None or empty")
         
         # Store results
         output_video = f"temp_{job_id}_analyzed.mp4"
+        print(f"DEBUG: Looking for output video: {output_video}, exists: {os.path.exists(output_video)}")
+        
         if os.path.exists(output_video):
             # Move to results folder
             result_video_path = os.path.join(RESULTS_FOLDER, f"{job_id}_analyzed.mp4")

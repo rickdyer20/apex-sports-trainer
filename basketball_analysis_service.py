@@ -576,11 +576,31 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     output_video_path = f"temp_{job.job_id}_analyzed.mp4"
     cap_reprocess = cv2.VideoCapture(local_video_path) # Re-open raw video for overlaying
     
-    # Use H.264 codec for web compatibility
-    fourcc = cv2.VideoWriter_fourcc(*'avc1') # H.264 codec (better web support than mp4v)
+    # Try different codecs for better compatibility
+    codecs_to_try = ['mp4v', 'XVID', 'MJPG', 'avc1']
+    out = None
     
-    # Slower FPS for slow-motion playback
-    out = cv2.VideoWriter(output_video_path, fourcc, fps / 4, (width, height)) # SLOW_MOTION_FACTOR = 4
+    for codec in codecs_to_try:
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            out = cv2.VideoWriter(output_video_path, fourcc, fps / 4, (width, height))
+            
+            # Test if the writer was opened successfully
+            if out.isOpened():
+                logging.info(f"Successfully initialized video writer with codec: {codec}")
+                break
+            else:
+                out.release()
+                out = None
+        except Exception as e:
+            logging.warning(f"Failed to initialize video writer with codec {codec}: {e}")
+            if out:
+                out.release()
+                out = None
+    
+    if out is None:
+        logging.error("Failed to initialize video writer with any codec")
+        return None
 
     frame_for_still_capture = {} # Dict to prevent capturing same frame multiple times
     flaw_stills_captured = [] # Track detailed flaw analysis stills
