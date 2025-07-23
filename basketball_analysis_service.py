@@ -425,80 +425,91 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     Main function to process a single video analysis job.
     This function would be triggered by a message from the processing queue.
     """
-    logging.info(f"Starting analysis for job: {job.job_id} from {job.video_url}")
+    try:
+        logging.info(f"Starting analysis for job: {job.job_id} from {job.video_url}")
 
-    local_video_path = f"temp_{job.job_id}_raw.mp4" # Use local temp for Windows compatibility
-    download_video_from_storage(job.video_url, local_video_path) # Assumes successful download
+        local_video_path = f"temp_{job.job_id}_raw.mp4" # Use local temp for Windows compatibility
+        download_video_from_storage(job.video_url, local_video_path) # Assumes successful download
 
-    cap = cv2.VideoCapture(local_video_path)
-    if not cap.isOpened():
-        logging.error(f"Failed to open video file: {local_video_path}")
-        job.status = "FAILED"
-        # Update job status in DB
-        return
+        cap = cv2.VideoCapture(local_video_path)
+        if not cap.isOpened():
+            logging.error(f"Failed to open video file: {local_video_path}")
+            job.status = "FAILED"
+            # Update job status in DB
+            return
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    processed_frames_data = [] # List of FrameData objects
-    current_frame_idx = 0
+        processed_frames_data = [] # List of FrameData objects
+        current_frame_idx = 0
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        # Convert the BGR image to RGB.
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image.flags.writeable = False
-        results = pose_model.process(image)
-        image.flags.writeable = True
+            try:
+                # Convert the BGR image to RGB.
+                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                image.flags.writeable = False
+                results = pose_model.process(image)
+                image.flags.writeable = True
 
-        frame_metrics = {}
-        if results.pose_landmarks:
-            landmarks = results.pose_landmarks.landmark
+                frame_metrics = {}
+                if results and results.pose_landmarks:
+                landmarks = results.pose_landmarks.landmark
 
-            # Calculate key angles and store them
-            # Right arm (assuming right-handed shot for now)
-            r_shoulder = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, width, height)
-            r_elbow = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW, width, height)
-            r_wrist = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)
-            r_hip = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_HIP, width, height)
-            r_knee = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_KNEE, width, height)
-            r_ankle = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ANKLE, width, height)
+                # Calculate key angles and store them
+                # Right arm (assuming right-handed shot for now)
+                r_shoulder = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, width, height)
+                r_elbow = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW, width, height)
+                r_wrist = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)
+                r_hip = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_HIP, width, height)
+                r_knee = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_KNEE, width, height)
+                r_ankle = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ANKLE, width, height)
 
-            # Elbow angle
-            elbow_angle = calculate_angle(r_shoulder, r_elbow, r_wrist)
-            frame_metrics['elbow_angle'] = elbow_angle
+                # Elbow angle
+                elbow_angle = calculate_angle(r_shoulder, r_elbow, r_wrist)
+                frame_metrics['elbow_angle'] = elbow_angle
 
-            # Knee angle
-            knee_angle = calculate_angle(r_hip, r_knee, r_ankle)
-            frame_metrics['knee_angle'] = knee_angle
+                # Knee angle
+                knee_angle = calculate_angle(r_hip, r_knee, r_ankle)
+                frame_metrics['knee_angle'] = knee_angle
 
-            # Wrist snap potential (simplified: angle between elbow, wrist, and a point representing ball direction)
-            # This would need more sophisticated logic for actual wrist snap
-            # For now, let's consider the general wrist angle:
-            wrist_angle = calculate_angle(r_elbow, r_wrist, [r_wrist[0], r_wrist[1] - 50]) # Point straight up from wrist
-            frame_metrics['wrist_angle_simplified'] = wrist_angle
+                # Wrist snap potential (simplified: angle between elbow, wrist, and a point representing ball direction)
+                # This would need more sophisticated logic for actual wrist snap
+                # For now, let's consider the general wrist angle:
+                wrist_angle = calculate_angle(r_elbow, r_wrist, [r_wrist[0], r_wrist[1] - 50]) # Point straight up from wrist
+                frame_metrics['wrist_angle_simplified'] = wrist_angle
 
-            # Calculate velocities (requires previous frame data)
-            if current_frame_idx > 0:
-                prev_landmarks = processed_frames_data[-1].landmarks_raw.pose_landmarks.landmark
-                # Example: Vertical velocity of wrist
-                prev_r_wrist_y = get_landmark_coords(processed_frames_data[-1].landmarks_raw.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)[1]
-                wrist_vertical_velocity = (prev_r_wrist_y - r_wrist[1]) * fps # Pixels per second
-                frame_metrics['wrist_vertical_velocity'] = wrist_vertical_velocity
-                # More velocities (knee, hip, etc.) would be calculated here
+                # Calculate velocities (requires previous frame data)
+                if current_frame_idx > 0:
+                    prev_frame = processed_frames_data[-1]
+                    if prev_frame.landmarks_raw and prev_frame.landmarks_raw.pose_landmarks:
+                        prev_landmarks = prev_frame.landmarks_raw.pose_landmarks.landmark
+                        # Example: Vertical velocity of wrist
+                        prev_r_wrist_y = get_landmark_coords(prev_frame.landmarks_raw.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)[1]
+                        wrist_vertical_velocity = (prev_r_wrist_y - r_wrist[1]) * fps # Pixels per second
+                        frame_metrics['wrist_vertical_velocity'] = wrist_vertical_velocity
+                        # More velocities (knee, hip, etc.) would be calculated here
+                    else:
+                        frame_metrics['wrist_vertical_velocity'] = 0
+                else:
+                    frame_metrics['wrist_vertical_velocity'] = 0
+
+                # Store the data for this frame
+                processed_frames_data.append(FrameData(current_frame_idx, results, frame_metrics))
+
             else:
-                frame_metrics['wrist_vertical_velocity'] = 0
-
-            # Store the data for this frame
-            processed_frames_data.append(FrameData(current_frame_idx, results, frame_metrics))
-
-        else:
-            # Handle frames where pose is not detected (e.g., player out of frame)
+                # Handle frames where pose is not detected (e.g., player out of frame)
+                processed_frames_data.append(FrameData(current_frame_idx, None, {}))
+                
+        except Exception as e:
+            logging.error(f"Error processing frame {current_frame_idx}: {e}")
+            # Handle frames with processing errors
             processed_frames_data.append(FrameData(current_frame_idx, None, {}))
 
         current_frame_idx += 1
@@ -615,10 +626,11 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         if current_frame_idx_output < len(processed_frames_data) and processed_frames_data[current_frame_idx_output].landmarks_raw:
             results_to_draw = processed_frames_data[current_frame_idx_output].landmarks_raw
             
-            # Draw skeleton
-            mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                     mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
-                                     mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
+            # Draw skeleton only if pose landmarks exist
+            if results_to_draw and results_to_draw.pose_landmarks:
+                mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                         mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
+                                         mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
 
             # Overlay phase information
             for phase in shot_phases:
@@ -753,18 +765,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.error(f"Error generating improvement plan PDF: {e}")
     
-    # Return analysis results including flaw stills for web app integration
-    return {
-        'analysis_report': analysis_report,
-        'output_video_path': output_video_path,
-        'feedback_stills': frame_for_still_capture,
-        'flaw_stills': flaw_stills_captured,
-        'detailed_flaws': detailed_flaws,
-        'shot_phases': shot_phases,
-        'feedback_points': feedback_points,
-        'improvement_plan_pdf': improvement_plan_pdf
-    }
-
     # Print summary of analysis
     print(f"\n=== ANALYSIS COMPLETE FOR JOB {job.job_id} ===")
     print(f"Phases identified: {len(shot_phases)}")
@@ -799,6 +799,33 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         os.remove(local_video_path)
     
     logging.info(f"Analysis for job {job.job_id} completed successfully and results stored/notified.")
+    
+    # Return analysis results including flaw stills for web app integration
+    return {
+        'analysis_report': analysis_report,
+        'output_video_path': output_video_path,
+        'feedback_stills': frame_for_still_capture,
+        'flaw_stills': flaw_stills_captured,
+        'detailed_flaws': detailed_flaws,
+        'shot_phases': shot_phases,
+        'feedback_points': feedback_points,
+        'improvement_plan_pdf': improvement_plan_pdf
+        }
+    
+    except Exception as e:
+        logging.error(f"Critical error in video analysis for job {job.job_id}: {e}")
+        # Return safe fallback results structure
+        return {
+            'analysis_report': None,
+            'output_video_path': None,
+            'feedback_stills': {},
+            'flaw_stills': [],
+            'detailed_flaws': [],
+            'shot_phases': [],
+            'feedback_points': [],
+            'improvement_plan_pdf': None,
+            'error': str(e)
+        }
 
 # --- Entry Point (Conceptual for a serverless function or containerized service) ---
 def handler(event, context):
