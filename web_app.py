@@ -637,15 +637,67 @@ def about():
     """About page explaining the analysis"""
     return render_template('about.html')
 
-@app.route('/api/health')
-def health_check():
-    """Health check endpoint"""
+@app.route('/health')
+def health():
+    """Simple health check endpoint"""
     return jsonify({
         'status': 'healthy',
         'service': 'Basketball Analysis Service',
-        'timestamp': datetime.now().isoformat(),
-        'active_jobs': len([j for j in analysis_jobs.values() if j['status'] == 'PROCESSING'])
+        'timestamp': datetime.now().isoformat()
     })
+
+@app.route('/api/health')
+def health_check():
+    """Comprehensive health check endpoint"""
+    health_status = {
+        'status': 'healthy',
+        'service': 'Basketball Analysis Service',
+        'timestamp': datetime.now().isoformat(),
+        'active_jobs': len([j for j in analysis_jobs.values() if j['status'] == 'PROCESSING']),
+        'checks': {}
+    }
+    
+    # Check database connection (if configured)
+    try:
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            from sqlalchemy import create_engine, text
+            engine = create_engine(database_url)
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            health_status['checks']['database'] = 'healthy'
+        else:
+            health_status['checks']['database'] = 'not_configured'
+    except Exception as e:
+        health_status['checks']['database'] = f'error: {str(e)}'
+        health_status['status'] = 'degraded'
+    
+    # Check Redis connection (if configured)
+    try:
+        redis_url = os.getenv('REDIS_URL')
+        if redis_url:
+            import redis
+            client = redis.Redis.from_url(redis_url)
+            client.ping()
+            health_status['checks']['redis'] = 'healthy'
+        else:
+            health_status['checks']['redis'] = 'not_configured'
+    except Exception as e:
+        health_status['checks']['redis'] = f'error: {str(e)}'
+        health_status['status'] = 'degraded'
+    
+    # Check disk space
+    try:
+        import shutil
+        total, used, free = shutil.disk_usage('.')
+        free_gb = free // (1024**3)
+        health_status['checks']['disk_space'] = f'{free_gb}GB free'
+        if free_gb < 1:  # Less than 1GB free
+            health_status['status'] = 'warning'
+    except Exception as e:
+        health_status['checks']['disk_space'] = f'error: {str(e)}'
+    
+    return jsonify(health_status)
 
 if __name__ == '__main__':
     print("🏀 Basketball Analysis Web Service Starting...")
