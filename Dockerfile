@@ -3,7 +3,7 @@
 
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install curl for health checks
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libgl1-mesa-glx \
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -36,10 +37,10 @@ USER app
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -f http://localhost:$PORT/health || exit 1
 
-# Expose port
-EXPOSE 5000
+# Expose port (use PORT env var for Railway)
+EXPOSE $PORT
 
-# Default command (can be overridden for workers)
-CMD ["python", "web_app.py"]
+# Use gunicorn for production deployment
+CMD ["gunicorn", "--workers", "2", "--timeout", "60", "--bind", "0.0.0.0:$PORT", "--worker-class", "gthread", "--threads", "2", "wsgi:application"]
