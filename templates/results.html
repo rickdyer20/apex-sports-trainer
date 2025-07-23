@@ -36,6 +36,85 @@
                         </div>
                     </div>
                     
+                    <!-- Video Player Section -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card shadow-sm">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-play-circle me-2"></i>
+                                        Slow-Motion Analysis Video
+                                    </h5>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="video-container" style="position: relative; width: 100%; background: #000;">
+                                        <video 
+                                            id="analysisVideo"
+                                            width="100%" 
+                                            height="auto"
+                                            controls 
+                                            preload="metadata"
+                                            style="max-height: 500px; display: block; margin: 0 auto;"
+                                            poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDgwMCA0NTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIiBmaWxsPSIjMjEzNTQ3Ii8+Cjx0ZXh0IHg9IjQwMCIgeT0iMjI1IiBmaWxsPSIjRkZGRkZGIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiPkxvYWRpbmcgQW5hbHlzaXMgVmlkZW8uLi48L3RleHQ+Cjwvc3ZnPgo=">
+                                            <source src="{{ url_for('serve_video', job_id=job_id) }}" type="video/mp4">
+                                            Your browser does not support the video tag.
+                                        </video>
+                                        
+                                        <!-- Video Controls Overlay -->
+                                        <div class="video-controls-info position-absolute" style="bottom: 10px; left: 10px; right: 10px;">
+                                            <div class="row">
+                                                <div class="col-md-8">
+                                                    <small class="text-white bg-dark px-2 py-1 rounded">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        <strong>Features:</strong> Pose estimation overlays, phase identification, slow-motion analysis
+                                                    </small>
+                                                </div>
+                                                <div class="col-md-4 text-end">
+                                                    <button class="btn btn-sm btn-outline-light" onclick="toggleVideoInfo()">
+                                                        <i class="fas fa-question-circle me-1"></i>Video Help
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Video Information Panel -->
+                                    <div id="videoInfoPanel" class="collapse">
+                                        <div class="card-body border-top">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <h6><i class="fas fa-eye me-2"></i>What You're Seeing</h6>
+                                                    <ul class="list-unstyled small">
+                                                        <li><i class="fas fa-circle text-primary me-2"></i>Skeleton overlay showing body landmarks</li>
+                                                        <li><i class="fas fa-circle text-success me-2"></i>Phase labels (Load/Dip, Release, Follow-Through)</li>
+                                                        <li><i class="fas fa-circle text-warning me-2"></i>Flaw indicators and coaching tips</li>
+                                                        <li><i class="fas fa-circle text-info me-2"></i>Joint angle measurements and analysis</li>
+                                                    </ul>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6><i class="fas fa-play me-2"></i>Video Controls</h6>
+                                                    <ul class="list-unstyled small">
+                                                        <li><i class="fas fa-pause me-2"></i>Pause at key moments to study form</li>
+                                                        <li><i class="fas fa-step-backward me-2"></i>Use frame-by-frame navigation</li>
+                                                        <li><i class="fas fa-search-plus me-2"></i>Right-click to save frame as image</li>
+                                                        <li><i class="fas fa-volume-mute me-2"></i>Video optimized for detailed analysis</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                            <div class="alert alert-info mb-0">
+                                                <small>
+                                                    <i class="fas fa-lightbulb me-2"></i>
+                                                    <strong>Tip:</strong> This video is slowed down to 1/4 speed for detailed biomechanical analysis. 
+                                                    Look for red highlights indicating areas for improvement and green text showing shooting phases.
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Analysis Summary -->
                     <div class="alert alert-info">
                         <h6><i class="fas fa-info-circle me-2"></i>Analysis Summary</h6>
@@ -317,5 +396,74 @@ setTimeout(() => {
         setTimeout(() => alert.remove(), 500);
     });
 }, 10000);
+
+// Toggle video information panel
+function toggleVideoInfo() {
+    const panel = document.getElementById('videoInfoPanel');
+    const button = event.target.closest('button');
+    
+    if (panel.classList.contains('show')) {
+        panel.classList.remove('show');
+        button.innerHTML = '<i class="fas fa-question-circle me-1"></i>Video Help';
+    } else {
+        panel.classList.add('show');
+        button.innerHTML = '<i class="fas fa-times me-1"></i>Hide Help';
+    }
+}
+
+// Video player enhancements
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('analysisVideo');
+    
+    if (video) {
+        // Add loading indicator
+        video.addEventListener('loadstart', function() {
+            console.log('Video loading started');
+        });
+        
+        video.addEventListener('loadeddata', function() {
+            console.log('Video loaded successfully');
+        });
+        
+        video.addEventListener('error', function() {
+            console.error('Video failed to load');
+            const container = video.parentElement;
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5>Video Loading Error</h5>
+                    <p class="text-muted">Unable to load the analysis video. Please try downloading it instead.</p>
+                    <a href="{{ url_for('download_result', job_id=job_id) }}" class="btn btn-primary">
+                        <i class="fas fa-download me-2"></i>Download Video
+                    </a>
+                </div>
+            `;
+        });
+        
+        // Add keyboard shortcuts for video control
+        document.addEventListener('keydown', function(e) {
+            if (document.activeElement === video || video.contains(document.activeElement)) {
+                switch(e.key) {
+                    case ' ':
+                        e.preventDefault();
+                        if (video.paused) {
+                            video.play();
+                        } else {
+                            video.pause();
+                        }
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        video.currentTime = Math.max(0, video.currentTime - 0.1);
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        video.currentTime = Math.min(video.duration, video.currentTime + 0.1);
+                        break;
+                }
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

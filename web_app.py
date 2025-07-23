@@ -232,6 +232,104 @@ def api_status(job_id):
     
     return jsonify(response)
 
+@app.route('/demo')
+def demo_results():
+    """Demo route to test video display with existing results"""
+    import glob
+    
+    # Find an existing analyzed video
+    video_files = glob.glob(os.path.join(RESULTS_FOLDER, "*_analyzed.mp4"))
+    if not video_files:
+        flash('No demo videos available')
+        return redirect(url_for('index'))
+    
+    # Use the first available video
+    demo_video = video_files[0]
+    demo_job_id = os.path.basename(demo_video).replace('_analyzed.mp4', '')
+    
+    # Create demo job and results
+    analysis_jobs[demo_job_id] = {
+        'job_id': demo_job_id,
+        'filename': 'demo_basketball_shot.mp4',
+        'filepath': demo_video,
+        'status': 'COMPLETED',
+        'created_at': datetime.now(),
+        'updated_at': datetime.now()
+    }
+    
+    # Find related files
+    flaw_stills = []
+    feedback_stills = []
+    improvement_plan_pdf = None
+    
+    # Look for flaw stills
+    flaw_files = glob.glob(os.path.join(RESULTS_FOLDER, f"{demo_job_id}_flaw_*.png"))
+    for i, flaw_file in enumerate(flaw_files):
+        filename = os.path.basename(flaw_file)
+        flaw_type = filename.split('_flaw_')[1].split('_frame_')[0]
+        frame_num = filename.split('_frame_')[1].split('.')[0]
+        flaw_stills.append({
+            'file_path': flaw_file,
+            'filename': filename,
+            'flaw_data': {
+                'flaw_type': flaw_type,
+                'phase': 'Release',
+                'severity': 25.0 + i * 10,
+                'plain_language': f'Demo {flaw_type.replace("_", " ").title()} detected in your shooting form.',
+                'coaching_tip': f'Focus on correcting your {flaw_type.replace("_", " ")} for better accuracy.',
+                'drill_suggestion': f'Practice {flaw_type.replace("_", " ")} correction drills daily.'
+            },
+            'frame_number': int(frame_num) if frame_num.isdigit() else 0
+        })
+    
+    # Look for feedback stills
+    feedback_files = glob.glob(os.path.join(RESULTS_FOLDER, f"{demo_job_id}_feedback_*.png"))
+    for feedback_file in feedback_files:
+        filename = os.path.basename(feedback_file)
+        frame_num = filename.split('_frame_')[1].split('.')[0]
+        feedback_stills.append({
+            'file_path': feedback_file,
+            'filename': filename,
+            'frame_number': int(frame_num) if frame_num.isdigit() else 0
+        })
+    
+    # Look for PDF
+    pdf_files = glob.glob(os.path.join(RESULTS_FOLDER, f"{demo_job_id}_60_Day_*.pdf"))
+    if not pdf_files:
+        pdf_files = glob.glob(os.path.join(RESULTS_FOLDER, f"60_Day_*{demo_job_id}*.pdf"))
+    
+    if pdf_files:
+        pdf_file = pdf_files[0]
+        improvement_plan_pdf = {
+            'file_path': pdf_file,
+            'filename': os.path.basename(pdf_file)
+        }
+    
+    job_results[demo_job_id] = {
+        'video_path': demo_video,
+        'analysis_complete': True,
+        'processed_at': datetime.now(),
+        'flaw_stills': flaw_stills,
+        'feedback_stills': feedback_stills,
+        'detailed_flaws': [still['flaw_data'] for still in flaw_stills],
+        'shot_phases': [
+            {'name': 'Load/Dip', 'start_frame': 0, 'end_frame': 15},
+            {'name': 'Release', 'start_frame': 16, 'end_frame': 25},
+            {'name': 'Follow-Through', 'start_frame': 26, 'end_frame': 40}
+        ],
+        'feedback_points': [
+            {
+                'frame_number': 20,
+                'discrepancy': 'Demo feedback point for testing',
+                'remedy_tips': 'Practice proper shooting form'
+            }
+        ],
+        'improvement_plan_pdf': improvement_plan_pdf
+    }
+    
+    flash(f'Demo results loaded for job: {demo_job_id}')
+    return redirect(url_for('view_results', job_id=demo_job_id))
+
 @app.route('/results/<job_id>')
 def view_results(job_id):
     """View analysis results"""
@@ -265,6 +363,25 @@ def download_result(job_id):
         as_attachment=True,
         download_name=f"analyzed_shot_{job_id}.mp4",
         mimetype='video/mp4'
+    )
+
+@app.route('/video/<job_id>')
+def serve_video(job_id):
+    """Serve analyzed video for web playback"""
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    video_path = job_results[job_id]['video_path']
+    if not os.path.exists(video_path):
+        flash('Result video not found')
+        return redirect(url_for('index'))
+    
+    return send_file(
+        video_path,
+        mimetype='video/mp4',
+        as_attachment=False,
+        download_name=f"analyzed_shot_{job_id}.mp4"
     )
 
 @app.route('/download_flaw_still/<job_id>/<int:still_index>')
