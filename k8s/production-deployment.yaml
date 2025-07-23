@@ -1,0 +1,275 @@
+# Basketball Analysis Service - Production Application Deployment
+# Kubernetes deployment configuration with worker services
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basketball-analysis
+  labels:
+    name: basketball-analysis
+    environment: production
+
+---
+# ConfigMap for application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: basketball-analysis
+data:
+  FLASK_ENV: "production"
+  APP_NAME: "Basketball Analysis Service"
+  APP_VERSION: "1.0.0"
+  LOG_LEVEL: "INFO"
+  PROMETHEUS_ENABLED: "true"
+  RATE_LIMIT_ENABLED: "true"
+  FEATURE_USER_REGISTRATION: "true"
+  FEATURE_PAYMENT_PROCESSING: "true"
+
+---
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: basketball-analysis
+type: Opaque
+data:
+  SECRET_KEY: eW91ci1zdXBlci1zZWNyZXQta2V5LWhlcmUtY2hhbmdlLXRoaXMtaW4tcHJvZHVjdGlvbg==
+  DB_PASSWORD: c2VjdXJlX2RhdGFiYXNlX3Bhc3N3b3JkX2NoYW5nZV90aGlz
+  REDIS_PASSWORD: c2VjdXJlX3JlZGlzX3Bhc3N3b3JkX2NoYW5nZV90aGlz
+  STRIPE_SECRET_KEY: c2tfdGVzdF95b3VyX3N0cmlwZV9zZWNyZXRfa2V5
+  ADMIN_PASSWORD: c2VjdXJlX2FkbWluX3Bhc3N3b3JkX2NoYW5nZV90aGlz
+
+---
+# Web Application Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basketball-analysis-web
+  namespace: basketball-analysis
+  labels:
+    app: basketball-analysis
+    component: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: basketball-analysis
+      component: web
+  template:
+    metadata:
+      labels:
+        app: basketball-analysis
+        component: web
+    spec:
+      containers:
+      - name: web
+        image: your-ecr-registry/basketball-analysis:latest
+        ports:
+        - containerPort: 5000
+          name: http
+        - containerPort: 9090
+          name: prometheus
+        env:
+        - name: COMPONENT_TYPE
+          value: "web"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        - secretRef:
+            name: app-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: temp-storage
+          mountPath: /app/temp_videos
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: temp-storage
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: logs
+        emptyDir: {}
+
+---
+# Worker Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basketball-analysis-worker
+  namespace: basketball-analysis
+  labels:
+    app: basketball-analysis
+    component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: basketball-analysis
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: basketball-analysis
+        component: worker
+    spec:
+      containers:
+      - name: worker
+        image: your-ecr-registry/basketball-analysis:latest
+        command: ["python", "worker.py"]
+        env:
+        - name: COMPONENT_TYPE
+          value: "worker"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        - secretRef:
+            name: app-secrets
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        volumeMounts:
+        - name: temp-storage
+          mountPath: /app/temp_videos
+        - name: output-storage
+          mountPath: /app/output_videos
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: temp-storage
+        emptyDir:
+          sizeLimit: 20Gi
+      - name: output-storage
+        emptyDir:
+          sizeLimit: 20Gi
+      - name: logs
+        emptyDir: {}
+
+---
+# Web Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: basketball-analysis-web-service
+  namespace: basketball-analysis
+  labels:
+    app: basketball-analysis
+    component: web
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 5000
+    name: http
+  - port: 9090
+    targetPort: 9090
+    name: prometheus
+  selector:
+    app: basketball-analysis
+    component: web
+
+---
+# Horizontal Pod Autoscaler for Web
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: basketball-analysis-web-hpa
+  namespace: basketball-analysis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: basketball-analysis-web
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# Horizontal Pod Autoscaler for Workers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: basketball-analysis-worker-hpa
+  namespace: basketball-analysis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: basketball-analysis-worker
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# PodDisruptionBudget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: basketball-analysis-web-pdb
+  namespace: basketball-analysis
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: basketball-analysis
+      component: web
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: basketball-analysis-worker-pdb
+  namespace: basketball-analysis
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: basketball-analysis
+      component: worker

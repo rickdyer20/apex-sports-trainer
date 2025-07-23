@@ -1,0 +1,44 @@
+# Basketball Analysis - Render Deployment Configuration
+
+# Build Command
+build = "pip install -r requirements.txt"
+
+# Start Command  
+start = "python start_production.py"
+
+# Environment
+[env]
+FLASK_ENV = "production"
+PYTHON_VERSION = "3.11.0"
+
+# Health Check
+healthcheck = "/health"
+
+# Auto Deploy
+autoDeploy = true
+
+# Scaling
+[scaling]
+minInstances = 1
+maxInstances = 3
+
+# Services
+[[services]]
+type = "web"
+name = "basketball-analysis"
+env = "production"
+buildCommand = "pip install -r requirements.txt"
+startCommand = "python start_production.py"
+healthCheckPath = "/health"
+
+[services.disk]
+sizeGB = 5
+mountPath = "/app/temp_videos"
+
+[[services.envVars]]
+key = "PORT"
+value = "5000"
+
+[[services.envVars]]
+key = "FLASK_ENV" 
+value = "production"

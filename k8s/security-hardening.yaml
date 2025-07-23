@@ -1,0 +1,396 @@
+# Basketball Analysis Service - Security Hardening & WAF Configuration
+# Production security implementation with AWS WAF, secrets management, and security policies
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    name: security
+
+---
+# AWS WAF Web ACL Configuration (Terraform format for reference)
+# This would be deployed via Terraform in terraform/security.tf
+locals {
+  waf_rules = {
+    rate_limiting = {
+      name     = "RateLimitRule"
+      priority = 1
+      action   = "block"
+      rate_limit = 2000  # requests per 5 minutes
+    }
+    geo_blocking = {
+      name     = "GeoBlockingRule"
+      priority = 2
+      action   = "block"
+      blocked_countries = ["CN", "RU", "KP"]  # Example blocked countries
+    }
+    ip_reputation = {
+      name     = "IPReputationRule"
+      priority = 3
+      action   = "block"
+    }
+    sql_injection = {
+      name     = "SQLiRule"
+      priority = 4
+      action   = "block"
+    }
+    xss_protection = {
+      name     = "XSSRule"
+      priority = 5
+      action   = "block"
+    }
+  }
+}
+
+---
+# Kubernetes Secrets Management with External Secrets Operator
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: aws-secrets-store
+  namespace: basketball-analysis
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-west-2
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: external-secrets-sa
+
+---
+# External Secret for Database Credentials
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: database-credentials
+  namespace: basketball-analysis
+spec:
+  refreshInterval: 15m
+  secretStoreRef:
+    name: aws-secrets-store
+    kind: SecretStore
+  target:
+    name: database-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: DB_PASSWORD
+    remoteRef:
+      key: basketball-analysis/database
+      property: password
+  - secretKey: DB_USER
+    remoteRef:
+      key: basketball-analysis/database
+      property: username
+
+---
+# External Secret for Application Secrets
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: app-secrets
+  namespace: basketball-analysis
+spec:
+  refreshInterval: 15m
+  secretStoreRef:
+    name: aws-secrets-store
+    kind: SecretStore
+  target:
+    name: app-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: SECRET_KEY
+    remoteRef:
+      key: basketball-analysis/app
+      property: secret_key
+  - secretKey: STRIPE_SECRET_KEY
+    remoteRef:
+      key: basketball-analysis/stripe
+      property: secret_key
+  - secretKey: JWT_SECRET_KEY
+    remoteRef:
+      key: basketball-analysis/jwt
+      property: secret_key
+
+---
+# Pod Security Policy
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: basketball-analysis-psp
+  namespace: basketball-analysis
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+---
+# ClusterRole for Pod Security Policy
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: basketball-analysis-psp-user
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - basketball-analysis-psp
+
+---
+# Network Policy for strict network isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: basketball-analysis-network-security
+  namespace: basketball-analysis
+spec:
+  podSelector:
+    matchLabels:
+      app: basketball-analysis
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress only from load balancer
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-system
+    ports:
+    - protocol: TCP
+      port: 5000
+  # Allow monitoring access
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  # Allow database access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+  # Allow HTTPS for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# Security scanning job with Trivy
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: security-scan
+  namespace: security
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: trivy-scanner
+            image: aquasec/trivy:latest
+            command:
+            - sh
+            - -c
+            - |
+              # Scan running containers
+              trivy image --exit-code 1 --severity HIGH,CRITICAL your-registry/basketball-analysis:latest
+              
+              # Scan Kubernetes cluster
+              trivy k8s --report summary cluster
+              
+              # Generate security report
+              trivy image --format json --output /tmp/security-report.json your-registry/basketball-analysis:latest
+            volumeMounts:
+            - name: reports
+              mountPath: /tmp
+          volumes:
+          - name: reports
+            persistentVolumeClaim:
+              claimName: security-reports-pvc
+          restartPolicy: OnFailure
+
+---
+# RBAC for least privilege access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: basketball-analysis
+  name: basketball-analysis-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Service Account with minimal permissions
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: basketball-analysis-sa
+  namespace: basketball-analysis
+automountServiceAccountToken: false
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: basketball-analysis-binding
+  namespace: basketball-analysis
+subjects:
+- kind: ServiceAccount
+  name: basketball-analysis-sa
+  namespace: basketball-analysis
+roleRef:
+  kind: Role
+  name: basketball-analysis-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Security Context Constraints for OpenShift (if applicable)
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: basketball-analysis-scc
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+- ALL
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+users:
+- system:serviceaccount:basketball-analysis:basketball-analysis-sa
+
+---
+# Falco Security Monitoring Rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-rules
+  namespace: security
+data:
+  basketball_analysis_rules.yaml: |
+    - rule: Suspicious Network Activity in Basketball Analysis
+      desc: Detect suspicious network connections from basketball analysis pods
+      condition: >
+        (k8s_pod and k8s.ns.name="basketball-analysis") and
+        (outbound and not fd.sport in (5432, 6379, 443, 53))
+      output: >
+        Suspicious outbound connection from basketball analysis pod
+        (pod=%k8s.pod.name namespace=%k8s.ns.name dest_port=%fd.rport)
+      priority: WARNING
+      tags: [network, basketball-analysis]
+    
+    - rule: Unexpected File Access in Basketball Analysis
+      desc: Detect unexpected file system access in basketball analysis containers
+      condition: >
+        (k8s_pod and k8s.ns.name="basketball-analysis") and
+        (open_write and not fd.name startswith "/app/" and not fd.name startswith "/tmp/")
+      output: >
+        Unexpected file write in basketball analysis container
+        (pod=%k8s.pod.name file=%fd.name)
+      priority: WARNING
+      tags: [filesystem, basketball-analysis]
+    
+    - rule: Privilege Escalation Attempt
+      desc: Detect privilege escalation attempts
+      condition: >
+        (k8s_pod and k8s.ns.name="basketball-analysis") and
+        (spawned_process and proc.name in (su, sudo, setuid))
+      output: >
+        Privilege escalation attempt detected
+        (pod=%k8s.pod.name process=%proc.name)
+      priority: CRITICAL
+      tags: [security, privilege-escalation]
+
+---
+# Certificate monitoring and rotation
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: certificate-monitor
+  namespace: security
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cert-monitor
+            image: alpine/openssl:latest
+            command:
+            - sh
+            - -c
+            - |
+              # Check certificate expiration
+              echo "Checking SSL certificate expiration..."
+              
+              # Check main domain
+              openssl s_client -connect basketballanalysis.com:443 -servername basketballanalysis.com < /dev/null 2>/dev/null | \
+                openssl x509 -noout -dates
+              
+              # Check API domain
+              openssl s_client -connect api.basketballanalysis.com:443 -servername api.basketballanalysis.com < /dev/null 2>/dev/null | \
+                openssl x509 -noout -dates
+              
+              # Alert if certificate expires in 30 days
+              EXPIRY=$(openssl s_client -connect basketballanalysis.com:443 -servername basketballanalysis.com < /dev/null 2>/dev/null | \
+                openssl x509 -noout -enddate | cut -d= -f2)
+              
+              EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+              CURRENT_EPOCH=$(date +%s)
+              DAYS_UNTIL_EXPIRY=$(( (EXPIRY_EPOCH - CURRENT_EPOCH) / 86400 ))
+              
+              if [ $DAYS_UNTIL_EXPIRY -lt 30 ]; then
+                echo "WARNING: Certificate expires in $DAYS_UNTIL_EXPIRY days!"
+                # Send alert (implement webhook or email notification)
+              fi
+          restartPolicy: OnFailure

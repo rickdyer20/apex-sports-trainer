@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help Center - Basketball Analysis</title>
+    <meta name="description" content="Get help with Basketball Analysis - tutorials, guides, and frequently asked questions">
+    
+    <!-- Styles -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/help-center.css">
+    
+    <!-- Search functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <img src="/static/images/logo.svg" alt="Basketball Analysis" class="logo">
+                <span class="logo-text">Basketball Analysis</span>
+                <span class="help-badge">Help Center</span>
+            </div>
+            
+            <div class="nav-links">
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/contact" class="nav-link">Contact Support</a>
+                <a href="/" class="nav-link">Back to App</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">How can we help you?</h1>
+            <p class="hero-subtitle">Find answers, guides, and tutorials to get the most out of Basketball Analysis</p>
+            
+            <!-- Search Bar -->
+            <div class="search-container">
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                    <input type="text" id="search-input" placeholder="Search for help articles, tutorials, or FAQs..." />
+                </div>
+                <div id="search-results" class="search-results"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Links -->
+    <section class="quick-links">
+        <div class="container">
+            <div class="quick-links-grid">
+                <a href="#getting-started" class="quick-link-card">
+                    <div class="quick-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <h3>Getting Started</h3>
+                    <p>Learn the basics of video upload and analysis</p>
+                </a>
+                
+                <a href="#video-recording" class="quick-link-card">
+                    <div class="quick-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11l-4 4z"/>
+                        </svg>
+                    </div>
+                    <h3>Video Recording Tips</h3>
+                    <p>Best practices for recording basketball shots</p>
+                </a>
+                
+                <a href="#understanding-analysis" class="quick-link-card">
+                    <div class="quick-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM21 17a2 2 0 11-4 0 2 2 0 014 0zM7 9l4-4-4-4m0 9l4-4-4-4m8 9l4-4-4-4"/>
+                        </svg>
+                    </div>
+                    <h3>Understanding Analysis</h3>
+                    <p>How to interpret your analysis results</p>
+                </a>
+                
+                <a href="#subscription-billing" class="quick-link-card">
+                    <div class="quick-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                        </svg>
+                    </div>
+                    <h3>Billing & Subscriptions</h3>
+                    <p>Manage your account and subscription</p>
+                </a>
+                
+                <a href="#api-integration" class="quick-link-card">
+                    <div class="quick-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <h3>API Integration</h3>
+                    <p>Developer guides and API documentation</p>
+                </a>
+                
+                <a href="#troubleshooting" class="quick-link-card">
+                    <div class="quick-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100-4m0 4v2m0-6V4"/>
+                        </svg>
+                    </div>
+                    <h3>Troubleshooting</h3>
+                    <p>Common issues and solutions</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Getting Started Section -->
+            <section id="getting-started" class="help-section">
+                <h2 class="section-title">Getting Started</h2>
+                
+                <div class="articles-grid">
+                    <article class="help-article">
+                        <h3>How to Upload Your First Video</h3>
+                        <div class="article-meta">
+                            <span class="read-time">3 min read</span>
+                            <span class="difficulty">Beginner</span>
+                        </div>
+                        <div class="article-content">
+                            <p>Welcome to Basketball Analysis! This guide will walk you through uploading your first video for analysis.</p>
+                            
+                            <h4>Step 1: Record Your Shot</h4>
+                            <ul>
+                                <li>Position camera at side angle, about 10-15 feet away</li>
+                                <li>Ensure entire body is visible from head to feet</li>
+                                <li>Record in good lighting conditions</li>
+                                <li>Keep camera steady (use tripod if available)</li>
+                            </ul>
+                            
+                            <h4>Step 2: Upload Video</h4>
+                            <ol>
+                                <li>Log into your Basketball Analysis account</li>
+                                <li>Click "Upload New Video" on your dashboard</li>
+                                <li>Select your video file (MP4, MOV, or AVI format)</li>
+                                <li>Wait for upload to complete</li>
+                            </ol>
+                            
+                            <h4>Step 3: Start Analysis</h4>
+                            <p>Once uploaded, analysis will start automatically. You'll receive an email when results are ready!</p>
+                            
+                            <div class="article-tips">
+                                <h5>💡 Pro Tips:</h5>
+                                <ul>
+                                    <li>Videos should be 5-300 seconds long</li>
+                                    <li>Maximum file size is 100MB</li>
+                                    <li>Higher quality videos produce better analysis results</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="help-article">
+                        <h3>Creating Your Account</h3>
+                        <div class="article-meta">
+                            <span class="read-time">2 min read</span>
+                            <span class="difficulty">Beginner</span>
+                        </div>
+                        <div class="article-content">
+                            <p>Get started with Basketball Analysis by creating your free account.</p>
+                            
+                            <h4>Registration Options</h4>
+                            <ul>
+                                <li><strong>Email Registration:</strong> Use your email and create a secure password</li>
+                                <li><strong>Google Sign-in:</strong> Quick registration with your Google account</li>
+                                <li><strong>GitHub:</strong> Sign in with your GitHub account</li>
+                                <li><strong>Microsoft:</strong> Use your Microsoft/Outlook account</li>
+                            </ul>
+                            
+                            <h4>Free Plan Includes:</h4>
+                            <ul>
+                                <li>1 video analysis per day</li>
+                                <li>Basic feedback reports</li>
+                                <li>Community support</li>
+                                <li>Mobile app access</li>
+                            </ul>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Video Recording Section -->
+            <section id="video-recording" class="help-section">
+                <h2 class="section-title">Video Recording Tips</h2>
+                
+                <div class="articles-grid">
+                    <article class="help-article">
+                        <h3>Perfect Camera Positioning</h3>
+                        <div class="article-meta">
+                            <span class="read-time">4 min read</span>
+                            <span class="difficulty">Beginner</span>
+                        </div>
+                        <div class="article-content">
+                            <p>Proper camera positioning is crucial for accurate analysis. Follow these guidelines for best results.</p>
+                            
+                            <h4>Camera Angle</h4>
+                            <ul>
+                                <li><strong>Side View:</strong> Position camera directly to the side of the shooter</li>
+                                <li><strong>Height:</strong> Camera should be at chest/shoulder height</li>
+                                <li><strong>Distance:</strong> Stand 10-15 feet away from the shooter</li>
+                                <li><strong>Stability:</strong> Use a tripod or stable surface</li>
+                            </ul>
+                            
+                            <h4>Framing Guidelines</h4>
+                            <ul>
+                                <li>Entire body visible from head to feet</li>
+                                <li>Include space above head and below feet</li>
+                                <li>Shooter should be centered in frame</li>
+                                <li>Avoid moving the camera during recording</li>
+                            </ul>
+                            
+                            <div class="video-example">
+                                <h5>Example Setup:</h5>
+                                <img src="/static/images/camera-setup-diagram.jpg" alt="Camera setup diagram" class="setup-diagram">
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="help-article">
+                        <h3>Lighting and Environment</h3>
+                        <div class="article-meta">
+                            <span class="read-time">3 min read</span>
+                            <span class="difficulty">Beginner</span>
+                        </div>
+                        <div class="article-content">
+                            <p>Good lighting and environment setup improve analysis accuracy significantly.</p>
+                            
+                            <h4>Lighting Requirements</h4>
+                            <ul>
+                                <li><strong>Natural Light:</strong> Outdoor recording during daylight hours</li>
+                                <li><strong>Indoor Lighting:</strong> Well-lit gym with even lighting</li>
+                                <li><strong>Avoid:</strong> Backlighting or shadows on the shooter</li>
+                                <li><strong>Consistency:</strong> Even lighting across the shooting motion</li>
+                            </ul>
+                            
+                            <h4>Background Considerations</h4>
+                            <ul>
+                                <li>Clear, uncluttered background</li>
+                                <li>Contrasting colors to distinguish body outline</li>
+                                <li>Avoid busy patterns or moving objects</li>
+                                <li>Solid colored wall or court background works best</li>
+                            </ul>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Understanding Analysis Section -->
+            <section id="understanding-analysis" class="help-section">
+                <h2 class="section-title">Understanding Your Analysis</h2>
+                
+                <div class="articles-grid">
+                    <article class="help-article">
+                        <h3>Biomechanical Metrics Explained</h3>
+                        <div class="article-meta">
+                            <span class="read-time">6 min read</span>
+                            <span class="difficulty">Intermediate</span>
+                        </div>
+                        <div class="article-content">
+                            <p>Learn what each metric in your analysis means and how to use them to improve your shot.</p>
+                            
+                            <h4>Key Angles</h4>
+                            <div class="metric-explanation">
+                                <h5>Elbow Angle (85-95°)</h5>
+                                <p>The angle of your shooting elbow at release. Optimal range provides consistent arc and power transfer.</p>
+                                
+                                <h5>Knee Angle (120-140°)</h5>
+                                <p>Knee bend during the loading phase. Proper bend generates upward force and improves balance.</p>
+                                
+                                <h5>Release Angle (45-50°)</h5>
+                                <p>The angle at which the ball leaves your hand. Affects shot arc and accuracy.</p>
+                            </div>
+                            
+                            <h4>Movement Phases</h4>
+                            <ul>
+                                <li><strong>Preparation:</strong> Setting up for the shot</li>
+                                <li><strong>Loading:</strong> Gathering momentum and power</li>
+                                <li><strong>Release:</strong> Ball leaves the hand</li>
+                                <li><strong>Follow-through:</strong> Completion of shooting motion</li>
+                            </ul>
+                            
+                            <h4>Scoring System</h4>
+                            <div class="score-ranges">
+                                <div class="score-range excellent">90-100: Excellent</div>
+                                <div class="score-range good">75-89: Good</div>
+                                <div class="score-range average">60-74: Average</div>
+                                <div class="score-range needs-work">Below 60: Needs Work</div>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="help-article">
+                        <h3>Reading Feedback Reports</h3>
+                        <div class="article-meta">
+                            <span class="read-time">4 min read</span>
+                            <span class="difficulty">Beginner</span>
+                        </div>
+                        <div class="article-content">
+                            <p>Understand how to interpret and act on the feedback provided in your analysis reports.</p>
+                            
+                            <h4>Feedback Categories</h4>
+                            <ul>
+                                <li><strong>Form:</strong> Body positioning and alignment</li>
+                                <li><strong>Timing:</strong> Coordination and rhythm</li>
+                                <li><strong>Balance:</strong> Stability throughout the shot</li>
+                                <li><strong>Consistency:</strong> Repeatability of motion</li>
+                            </ul>
+                            
+                            <h4>Severity Levels</h4>
+                            <div class="severity-levels">
+                                <div class="severity minor">Minor: Small adjustments recommended</div>
+                                <div class="severity moderate">Moderate: Noticeable impact on accuracy</div>
+                                <div class="severity major">Major: Significant form correction needed</div>
+                            </div>
+                            
+                            <h4>Using Recommendations</h4>
+                            <p>Each feedback point includes specific drills and exercises to address the identified area. Practice these consistently for best results.</p>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- FAQ Section -->
+            <section id="faq" class="help-section">
+                <h2 class="section-title">Frequently Asked Questions</h2>
+                
+                <div class="faq-container">
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>How long does analysis take?</span>
+                            <svg class="faq-icon" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div class="faq-answer">
+                            <p>Most video analyses complete within 2-5 minutes. Longer videos or high-quality files may take up to 10 minutes. You'll receive an email notification when your analysis is ready.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>What video formats are supported?</span>
+                            <svg class="faq-icon" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div class="faq-answer">
+                            <p>We support MP4, MOV, AVI, and WebM formats. Maximum file size is 100MB. For best results, use 1080p resolution at 30fps or higher.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>Can I analyze multiple shots in one video?</span>
+                            <svg class="faq-icon" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div class="faq-answer">
+                            <p>Currently, our system analyzes one shot per video for maximum accuracy. For multiple shots, please upload separate videos. Pro users can batch upload multiple videos.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>How accurate is the analysis?</span>
+                            <svg class="faq-icon" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div class="faq-answer">
+                            <p>Our AI analysis is trained on thousands of basketball shots and validated by professional coaches. Accuracy depends on video quality, lighting, and camera positioning. With proper setup, accuracy exceeds 95%.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>Can I cancel my subscription anytime?</span>
+                            <svg class="faq-icon" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div class="faq-answer">
+                            <p>Yes, you can cancel your subscription at any time through your account settings or the customer portal. You'll retain access until the end of your current billing period.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contact Section -->
+            <section class="contact-section">
+                <div class="contact-container">
+                    <h2>Still need help?</h2>
+                    <p>Can't find what you're looking for? Our support team is here to help.</p>
+                    
+                    <div class="contact-options">
+                        <a href="mailto:support@basketball-analysis.com" class="contact-option">
+                            <div class="contact-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            <h3>Email Support</h3>
+                            <p>Get help via email</p>
+                            <span class="response-time">Response within 24 hours</span>
+                        </a>
+                        
+                        <a href="/contact" class="contact-option">
+                            <div class="contact-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                </svg>
+                            </div>
+                            <h3>Live Chat</h3>
+                            <p>Chat with our team</p>
+                            <span class="response-time">Available 9AM-5PM EST</span>
+                        </a>
+                        
+                        <a href="/community" class="contact-option">
+                            <div class="contact-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                </svg>
+                            </div>
+                            <h3>Community Forum</h3>
+                            <p>Connect with other users</p>
+                            <span class="response-time">Get peer support</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="/privacy">Privacy Policy</a>
+                    <a href="/terms">Terms of Service</a>
+                    <a href="/api/docs">API Documentation</a>
+                    <a href="/status">System Status</a>
+                </div>
+                <p class="copyright">© 2025 Basketball Analysis. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/js/help-center.js"></script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+# Basketball Analysis Service - Performance Testing & Optimization
+# Load testing, performance monitoring, and optimization tools
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: performance-testing
+  labels:
+    name: performance-testing
+
+---
+# K6 Load Testing ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-load-tests
+  namespace: performance-testing
+data:
+  basic-load-test.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { Rate } from 'k6/metrics';
+    
+    export const errorRate = new Rate('errors');
+    
+    export const options = {
+      stages: [
+        { duration: '2m', target: 10 },   // Ramp up to 10 users
+        { duration: '5m', target: 10 },   // Stay at 10 users
+        { duration: '2m', target: 20 },   // Ramp up to 20 users
+        { duration: '5m', target: 20 },   // Stay at 20 users
+        { duration: '2m', target: 0 },    // Ramp down
+      ],
+      thresholds: {
+        http_req_duration: ['p(95)<2000'], // 95% of requests under 2s
+        http_req_failed: ['rate<0.1'],     // Error rate under 10%
+        errors: ['rate<0.1'],
+      },
+    };
+    
+    const BASE_URL = __ENV.BASE_URL || 'https://app.basketballanalysis.com';
+    
+    export default function() {
+      // Test health endpoint
+      let healthResponse = http.get(`${BASE_URL}/health`);
+      check(healthResponse, {
+        'health check status is 200': (r) => r.status === 200,
+        'health check duration < 500ms': (r) => r.timings.duration < 500,
+      }) || errorRate.add(1);
+      
+      sleep(1);
+      
+      // Test main page
+      let homeResponse = http.get(`${BASE_URL}/`);
+      check(homeResponse, {
+        'home page status is 200': (r) => r.status === 200,
+        'home page duration < 2000ms': (r) => r.timings.duration < 2000,
+      }) || errorRate.add(1);
+      
+      sleep(2);
+      
+      // Test API endpoint
+      let apiResponse = http.get(`${BASE_URL}/api/health`);
+      check(apiResponse, {
+        'API health status is 200': (r) => r.status === 200,
+        'API response time < 1000ms': (r) => r.timings.duration < 1000,
+      }) || errorRate.add(1);
+      
+      sleep(1);
+    }
+  
+  video-upload-test.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { FormData } from 'https://jslib.k6.io/formdata/0.0.2/index.js';
+    
+    export const options = {
+      stages: [
+        { duration: '1m', target: 5 },    // Ramp up to 5 users
+        { duration: '3m', target: 5 },    // Stay at 5 users
+        { duration: '1m', target: 0 },    // Ramp down
+      ],
+      thresholds: {
+        http_req_duration: ['p(95)<30000'], // 95% of requests under 30s
+        http_req_failed: ['rate<0.05'],     // Error rate under 5%
+      },
+    };
+    
+    const BASE_URL = __ENV.BASE_URL || 'https://app.basketballanalysis.com';
+    
+    // Sample video data (small test file)
+    const videoData = open('./test-video.mp4', 'b');
+    
+    export default function() {
+      const formData = new FormData();
+      formData.append('video', http.file(videoData, 'test-video.mp4', 'video/mp4'));
+      
+      let response = http.post(`${BASE_URL}/upload`, formData.body(), {
+        headers: { 'Content-Type': 'multipart/form-data; boundary=' + formData.boundary },
+      });
+      
+      check(response, {
+        'upload status is 200 or 202': (r) => r.status === 200 || r.status === 202,
+        'upload response time < 30s': (r) => r.timings.duration < 30000,
+      });
+      
+      if (response.status === 202) {
+        // If async processing, check job status
+        const jobId = response.json('job_id');
+        if (jobId) {
+          sleep(5);
+          let statusResponse = http.get(`${BASE_URL}/status/${jobId}`);
+          check(statusResponse, {
+            'status check successful': (r) => r.status === 200,
+          });
+        }
+      }
+      
+      sleep(10);
+    }
+  
+  stress-test.js: |
+    import http from 'k6/http';
+    import { check } from 'k6';
+    
+    export const options = {
+      stages: [
+        { duration: '1m', target: 50 },   // Ramp up to 50 users
+        { duration: '3m', target: 100 },  // Ramp up to 100 users
+        { duration: '5m', target: 100 },  // Stay at 100 users
+        { duration: '3m', target: 150 },  // Ramp up to 150 users
+        { duration: '2m', target: 0 },    // Ramp down
+      ],
+      thresholds: {
+        http_req_duration: ['p(95)<5000'], // 95% of requests under 5s
+        http_req_failed: ['rate<0.2'],     // Error rate under 20%
+      },
+    };
+    
+    const BASE_URL = __ENV.BASE_URL || 'https://app.basketballanalysis.com';
+    
+    export default function() {
+      let response = http.get(`${BASE_URL}/health`);
+      check(response, {
+        'stress test status check': (r) => r.status === 200,
+      });
+    }
+
+---
+# K6 Load Test Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-basic-load-test
+  namespace: performance-testing
+spec:
+  template:
+    metadata:
+      labels:
+        app: k6-load-test
+    spec:
+      containers:
+      - name: k6
+        image: grafana/k6:latest
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "Starting K6 load test..."
+          k6 run --out json=/tmp/results.json /scripts/basic-load-test.js
+          echo "Load test completed"
+          
+          # Upload results to S3 for analysis
+          if [ ! -z "$AWS_S3_BUCKET" ]; then
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            aws s3 cp /tmp/results.json s3://$AWS_S3_BUCKET/performance-tests/basic-load-test-$TIMESTAMP.json
+          fi
+        env:
+        - name: BASE_URL
+          value: "https://app.basketballanalysis.com"
+        - name: AWS_S3_BUCKET
+          value: "basketball-analysis-test-results"
+        volumeMounts:
+        - name: k6-scripts
+          mountPath: /scripts
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: k6-scripts
+        configMap:
+          name: k6-load-tests
+      restartPolicy: Never
+
+---
+# Performance Monitoring Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: performance-monitor
+  namespace: performance-testing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: performance-monitor
+  template:
+    metadata:
+      labels:
+        app: performance-monitor
+    spec:
+      containers:
+      - name: monitor
+        image: prom/blackbox-exporter:latest
+        ports:
+        - containerPort: 9115
+        args:
+        - --config.file=/config/blackbox.yml
+        volumeMounts:
+        - name: blackbox-config
+          mountPath: /config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: blackbox-config
+        configMap:
+          name: blackbox-config
+
+---
+# Blackbox Exporter Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-config
+  namespace: performance-testing
+data:
+  blackbox.yml: |
+    modules:
+      http_2xx:
+        prober: http
+        http:
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: []
+          method: GET
+          follow_redirects: true
+          preferred_ip_protocol: "ip4"
+      
+      http_post_2xx:
+        prober: http
+        http:
+          method: POST
+          headers:
+            Content-Type: application/json
+          body: '{"test": "data"}'
+          valid_status_codes: [200, 201, 202]
+      
+      tcp_connect:
+        prober: tcp
+      
+      icmp:
+        prober: icmp
+
+---
+# Performance Test Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: performance-monitor-service
+  namespace: performance-testing
+spec:
+  selector:
+    app: performance-monitor
+  ports:
+  - port: 9115
+    targetPort: 9115
+    name: metrics
+
+---
+# Automated Performance Test CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: automated-performance-test
+  namespace: performance-testing
+spec:
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: automated-perf-test
+        spec:
+          containers:
+          - name: performance-tester
+            image: grafana/k6:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting automated performance test at $(date)"
+              
+              # Run basic load test
+              echo "Running basic load test..."
+              k6 run --out json=/tmp/basic-results.json /scripts/basic-load-test.js
+              
+              # Run stress test if basic test passes
+              if [ $? -eq 0 ]; then
+                echo "Basic test passed, running stress test..."
+                k6 run --out json=/tmp/stress-results.json /scripts/stress-test.js
+              else
+                echo "Basic test failed, skipping stress test"
+              fi
+              
+              # Analyze results and send alerts if performance degrades
+              echo "Analyzing performance results..."
+              
+              # Extract key metrics
+              AVG_RESPONSE_TIME=$(cat /tmp/basic-results.json | jq -r '.metrics.http_req_duration.values.avg')
+              ERROR_RATE=$(cat /tmp/basic-results.json | jq -r '.metrics.http_req_failed.values.rate')
+              
+              echo "Average response time: ${AVG_RESPONSE_TIME}ms"
+              echo "Error rate: ${ERROR_RATE}"
+              
+              # Alert if performance is degraded
+              if (( $(echo "$AVG_RESPONSE_TIME > 2000" | bc -l) )); then
+                echo "WARNING: High response time detected"
+                # Send alert (implement webhook or SNS)
+              fi
+              
+              if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
+                echo "WARNING: High error rate detected"
+                # Send alert
+              fi
+              
+              # Upload results to S3
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              if [ ! -z "$AWS_S3_BUCKET" ]; then
+                aws s3 cp /tmp/basic-results.json s3://$AWS_S3_BUCKET/performance-tests/automated-basic-$TIMESTAMP.json
+                if [ -f /tmp/stress-results.json ]; then
+                  aws s3 cp /tmp/stress-results.json s3://$AWS_S3_BUCKET/performance-tests/automated-stress-$TIMESTAMP.json
+                fi
+              fi
+              
+              echo "Automated performance test completed at $(date)"
+            env:
+            - name: BASE_URL
+              value: "https://app.basketballanalysis.com"
+            - name: AWS_S3_BUCKET
+              value: "basketball-analysis-test-results"
+            volumeMounts:
+            - name: k6-scripts
+              mountPath: /scripts
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "500m"
+              limits:
+                memory: "1Gi"
+                cpu: "1000m"
+          volumes:
+          - name: k6-scripts
+            configMap:
+              name: k6-load-tests
+          restartPolicy: Never
+
+---
+# Database Performance Monitoring
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-performance-check
+  namespace: performance-testing
+spec:
+  schedule: "*/15 * * * *"  # Every 15 minutes
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: db-perf-check
+        spec:
+          containers:
+          - name: db-monitor
+            image: postgres:13
+            command:
+            - bash
+            - -c
+            - |
+              echo "Checking database performance at $(date)"
+              
+              # Check slow queries
+              psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
+                SELECT query, mean_time, calls 
+                FROM pg_stat_statements 
+                WHERE mean_time > 1000 
+                ORDER BY mean_time DESC 
+                LIMIT 10;
+              " || echo "pg_stat_statements not available"
+              
+              # Check database size
+              psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
+                SELECT 
+                  pg_size_pretty(pg_database_size('$DB_NAME')) as database_size,
+                  pg_size_pretty(pg_total_relation_size('users')) as users_table_size,
+                  pg_size_pretty(pg_total_relation_size('analysis_jobs')) as jobs_table_size;
+              "
+              
+              # Check active connections
+              psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
+                SELECT 
+                  count(*) as active_connections,
+                  max(now() - query_start) as longest_running_query
+                FROM pg_stat_activity 
+                WHERE state = 'active';
+              "
+              
+              echo "Database performance check completed at $(date)"
+            env:
+            - name: DB_HOST
+              value: "basketball-analysis-db.cluster-xxx.us-west-2.rds.amazonaws.com"
+            - name: DB_NAME
+              value: "basketball_analysis_prod"
+            - name: DB_USER
+              value: "monitoring_user"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-credentials
+                  key: DB_PASSWORD
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+          restartPolicy: OnFailure

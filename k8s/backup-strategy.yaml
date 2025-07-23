@@ -1,0 +1,476 @@
+# Basketball Analysis Service - Automated Backup Strategy
+# Database and video backup automation with retention policies
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backup-system
+  labels:
+    name: backup-system
+
+---
+# Service Account for backup operations
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-operator
+  namespace: backup-system
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::YOUR_ACCOUNT:role/BackupOperatorRole
+
+---
+# RBAC for backup operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-operator-role
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumes", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshots", "volumesnapshotclasses"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-operator-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-operator-role
+subjects:
+- kind: ServiceAccount
+  name: backup-operator
+  namespace: backup-system
+
+---
+# ConfigMap for backup configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: backup-system
+data:
+  backup.conf: |
+    # Database backup configuration
+    DB_HOST=basketball-analysis-db.cluster-xxx.us-west-2.rds.amazonaws.com
+    DB_NAME=basketball_analysis_prod
+    DB_USER=backup_user
+    BACKUP_RETENTION_DAYS=30
+    BACKUP_S3_BUCKET=basketball-analysis-backups
+    
+    # Video backup configuration
+    VIDEO_SOURCE_BUCKET=basketball-analysis-videos
+    VIDEO_BACKUP_BUCKET=basketball-analysis-video-backups
+    VIDEO_RETENTION_DAYS=90
+    
+    # Backup schedule
+    DAILY_BACKUP_TIME=02:00
+    WEEKLY_BACKUP_DAY=sunday
+    MONTHLY_BACKUP_DATE=1
+
+---
+# Secret for backup credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-credentials
+  namespace: backup-system
+type: Opaque
+data:
+  DB_PASSWORD: YmFja3VwX3Bhc3N3b3JkX2NoYW5nZV90aGlz  # backup_password_change_this
+  AWS_ACCESS_KEY_ID: eW91cl9hd3NfYWNjZXNzX2tleQ==
+  AWS_SECRET_ACCESS_KEY: eW91cl9hd3Nfc2VjcmV0X2tleQ==
+
+---
+# Daily Database Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-database-backup
+  namespace: backup-system
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: database-backup
+        spec:
+          serviceAccountName: backup-operator
+          containers:
+          - name: pg-backup
+            image: postgres:13
+            command:
+            - bash
+            - -c
+            - |
+              set -e
+              
+              # Set backup timestamp
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="basketball_analysis_backup_${TIMESTAMP}.sql"
+              
+              echo "Starting database backup at $(date)"
+              
+              # Create database dump
+              pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME --verbose --clean --no-owner --no-acl > /tmp/$BACKUP_FILE
+              
+              if [ $? -eq 0 ]; then
+                echo "Database dump completed successfully"
+                
+                # Compress backup
+                gzip /tmp/$BACKUP_FILE
+                BACKUP_FILE="${BACKUP_FILE}.gz"
+                
+                # Upload to S3
+                aws s3 cp /tmp/$BACKUP_FILE s3://$BACKUP_S3_BUCKET/database/daily/$BACKUP_FILE
+                
+                if [ $? -eq 0 ]; then
+                  echo "Backup uploaded to S3 successfully"
+                  
+                  # Clean up old backups (keep last 30 days)
+                  aws s3 ls s3://$BACKUP_S3_BUCKET/database/daily/ | \
+                    awk '{print $4}' | \
+                    sort | \
+                    head -n -$BACKUP_RETENTION_DAYS | \
+                    xargs -I {} aws s3 rm s3://$BACKUP_S3_BUCKET/database/daily/{}
+                  
+                  echo "Old backups cleaned up"
+                else
+                  echo "Failed to upload backup to S3"
+                  exit 1
+                fi
+              else
+                echo "Database dump failed"
+                exit 1
+              fi
+              
+              echo "Database backup completed at $(date)"
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: DB_PASSWORD
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            - secretRef:
+                name: backup-credentials
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "250m"
+              limits:
+                memory: "1Gi"
+                cpu: "500m"
+          restartPolicy: OnFailure
+
+---
+# Weekly Full Database Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: weekly-database-backup
+  namespace: backup-system
+spec:
+  schedule: "0 3 * * 0"  # Weekly on Sunday at 3 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: database-backup-weekly
+        spec:
+          serviceAccountName: backup-operator
+          containers:
+          - name: pg-backup-full
+            image: postgres:13
+            command:
+            - bash
+            - -c
+            - |
+              set -e
+              
+              # Set backup timestamp
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="basketball_analysis_full_backup_${TIMESTAMP}.sql"
+              
+              echo "Starting weekly full database backup at $(date)"
+              
+              # Create full database dump with data and schema
+              pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME \
+                --verbose --clean --create --if-exists \
+                --format=custom --compress=9 > /tmp/$BACKUP_FILE
+              
+              if [ $? -eq 0 ]; then
+                echo "Full database dump completed successfully"
+                
+                # Upload to S3
+                aws s3 cp /tmp/$BACKUP_FILE s3://$BACKUP_S3_BUCKET/database/weekly/$BACKUP_FILE
+                
+                if [ $? -eq 0 ]; then
+                  echo "Weekly backup uploaded to S3 successfully"
+                  
+                  # Keep last 12 weekly backups (3 months)
+                  aws s3 ls s3://$BACKUP_S3_BUCKET/database/weekly/ | \
+                    awk '{print $4}' | \
+                    sort | \
+                    head -n -12 | \
+                    xargs -I {} aws s3 rm s3://$BACKUP_S3_BUCKET/database/weekly/{}
+                  
+                  echo "Old weekly backups cleaned up"
+                else
+                  echo "Failed to upload weekly backup to S3"
+                  exit 1
+                fi
+              else
+                echo "Weekly database dump failed"
+                exit 1
+              fi
+              
+              echo "Weekly database backup completed at $(date)"
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: DB_PASSWORD
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            - secretRef:
+                name: backup-credentials
+            resources:
+              requests:
+                memory: "1Gi"
+                cpu: "500m"
+              limits:
+                memory: "2Gi"
+                cpu: "1000m"
+          restartPolicy: OnFailure
+
+---
+# Video Backup Sync CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: video-backup-sync
+  namespace: backup-system
+spec:
+  schedule: "0 4 * * *"  # Daily at 4 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: video-backup
+        spec:
+          serviceAccountName: backup-operator
+          containers:
+          - name: video-sync
+            image: amazon/aws-cli:latest
+            command:
+            - bash
+            - -c
+            - |
+              set -e
+              
+              echo "Starting video backup sync at $(date)"
+              
+              # Sync videos to backup bucket
+              aws s3 sync s3://$VIDEO_SOURCE_BUCKET s3://$VIDEO_BACKUP_BUCKET \
+                --storage-class STANDARD_IA \
+                --exclude "temp/*" \
+                --exclude "processing/*"
+              
+              if [ $? -eq 0 ]; then
+                echo "Video sync completed successfully"
+                
+                # Clean up old videos (keep for VIDEO_RETENTION_DAYS)
+                CUTOFF_DATE=$(date -d "$VIDEO_RETENTION_DAYS days ago" +%Y-%m-%d)
+                
+                aws s3api list-objects-v2 \
+                  --bucket $VIDEO_BACKUP_BUCKET \
+                  --query "Contents[?LastModified<='$CUTOFF_DATE'].Key" \
+                  --output text | \
+                  xargs -I {} aws s3 rm s3://$VIDEO_BACKUP_BUCKET/{}
+                
+                echo "Old video backups cleaned up"
+              else
+                echo "Video sync failed"
+                exit 1
+              fi
+              
+              echo "Video backup sync completed at $(date)"
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            - secretRef:
+                name: backup-credentials
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "250m"
+          restartPolicy: OnFailure
+
+---
+# Backup Monitoring and Alerting
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-health-check
+  namespace: backup-system
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM UTC
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: backup-monitor
+        spec:
+          serviceAccountName: backup-operator
+          containers:
+          - name: backup-monitor
+            image: amazon/aws-cli:latest
+            command:
+            - bash
+            - -c
+            - |
+              set -e
+              
+              echo "Starting backup health check at $(date)"
+              
+              # Check if yesterday's database backup exists
+              YESTERDAY=$(date -d "1 day ago" +%Y%m%d)
+              BACKUP_EXISTS=$(aws s3 ls s3://$BACKUP_S3_BUCKET/database/daily/ | grep $YESTERDAY | wc -l)
+              
+              if [ $BACKUP_EXISTS -eq 0 ]; then
+                echo "ERROR: No database backup found for $YESTERDAY"
+                # Send alert (webhook/SNS notification)
+                aws sns publish \
+                  --topic-arn arn:aws:sns:us-west-2:YOUR_ACCOUNT:backup-alerts \
+                  --message "Database backup missing for $YESTERDAY" \
+                  --subject "Basketball Analysis Backup Alert"
+                exit 1
+              else
+                echo "Database backup check passed for $YESTERDAY"
+              fi
+              
+              # Check video backup sync status
+              SOURCE_COUNT=$(aws s3api list-objects-v2 --bucket $VIDEO_SOURCE_BUCKET --query 'length(Contents)')
+              BACKUP_COUNT=$(aws s3api list-objects-v2 --bucket $VIDEO_BACKUP_BUCKET --query 'length(Contents)')
+              
+              SYNC_RATIO=$(echo "scale=2; $BACKUP_COUNT / $SOURCE_COUNT" | bc)
+              
+              if [ $(echo "$SYNC_RATIO < 0.95" | bc) -eq 1 ]; then
+                echo "WARNING: Video backup sync ratio low: $SYNC_RATIO"
+                aws sns publish \
+                  --topic-arn arn:aws:sns:us-west-2:YOUR_ACCOUNT:backup-alerts \
+                  --message "Video backup sync ratio low: $SYNC_RATIO" \
+                  --subject "Basketball Analysis Video Backup Warning"
+              else
+                echo "Video backup sync check passed: $SYNC_RATIO"
+              fi
+              
+              echo "Backup health check completed at $(date)"
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            - secretRef:
+                name: backup-credentials
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+          restartPolicy: OnFailure
+
+---
+# Backup Restore Job Template (manual execution)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: database-restore-template
+  namespace: backup-system
+spec:
+  template:
+    metadata:
+      labels:
+        app: database-restore
+    spec:
+      serviceAccountName: backup-operator
+      containers:
+      - name: pg-restore
+        image: postgres:13
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          
+          # Set restore file (modify this when running)
+          RESTORE_FILE=${RESTORE_FILE:-"basketball_analysis_backup_latest.sql.gz"}
+          
+          echo "Starting database restore from $RESTORE_FILE at $(date)"
+          
+          # Download backup from S3
+          aws s3 cp s3://$BACKUP_S3_BUCKET/database/daily/$RESTORE_FILE /tmp/
+          
+          # Decompress if needed
+          if [[ $RESTORE_FILE == *.gz ]]; then
+            gunzip /tmp/$RESTORE_FILE
+            RESTORE_FILE=${RESTORE_FILE%.gz}
+          fi
+          
+          # Restore database
+          psql -h $DB_HOST -U $DB_USER -d postgres -c "DROP DATABASE IF EXISTS ${DB_NAME}_restore;"
+          psql -h $DB_HOST -U $DB_USER -d postgres -c "CREATE DATABASE ${DB_NAME}_restore;"
+          psql -h $DB_HOST -U $DB_USER -d ${DB_NAME}_restore < /tmp/$RESTORE_FILE
+          
+          echo "Database restore completed at $(date)"
+          echo "Restored to database: ${DB_NAME}_restore"
+          echo "IMPORTANT: Manually verify and rename database when ready"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backup-credentials
+              key: DB_PASSWORD
+        envFrom:
+        - configMapRef:
+            name: backup-config
+        - secretRef:
+            name: backup-credentials
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      restartPolicy: Never

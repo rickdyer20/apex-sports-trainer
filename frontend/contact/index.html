@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Support - Basketball Analysis</title>
+    <meta name="description" content="Get in touch with Basketball Analysis support team - we're here to help with any questions or issues">
+    
+    <!-- Styles -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/contact.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <img src="/static/images/logo.svg" alt="Basketball Analysis" class="logo">
+                <span class="logo-text">Basketball Analysis</span>
+            </div>
+            
+            <div class="nav-links">
+                <a href="/help" class="nav-link">Help Center</a>
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/" class="nav-link">Back to App</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Contact Support</h1>
+            <p class="hero-subtitle">We're here to help! Get in touch with our support team.</p>
+        </div>
+    </section>
+
+    <!-- Contact Options -->
+    <section class="contact-options">
+        <div class="container">
+            <div class="options-grid">
+                <!-- Live Chat -->
+                <div class="contact-option-card">
+                    <div class="option-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                    </div>
+                    <h3>Live Chat</h3>
+                    <p>Get instant help from our support team</p>
+                    <div class="option-details">
+                        <span class="availability">Available 9AM-5PM EST</span>
+                        <span class="response-time">~2 minute response</span>
+                    </div>
+                    <button class="option-button primary" onclick="startLiveChat()">Start Chat</button>
+                </div>
+
+                <!-- Email Support -->
+                <div class="contact-option-card">
+                    <div class="option-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <h3>Email Support</h3>
+                    <p>Send us a detailed message about your issue</p>
+                    <div class="option-details">
+                        <span class="availability">24/7 Submissions</span>
+                        <span class="response-time">~4 hour response</span>
+                    </div>
+                    <button class="option-button secondary" onclick="scrollToContactForm()">Send Email</button>
+                </div>
+
+                <!-- Help Center -->
+                <div class="contact-option-card">
+                    <div class="option-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 12h6M9 16h6M9 8h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <h3>Help Center</h3>
+                    <p>Browse our comprehensive knowledge base</p>
+                    <div class="option-details">
+                        <span class="availability">Available 24/7</span>
+                        <span class="response-time">Instant answers</span>
+                    </div>
+                    <a href="/help" class="option-button secondary">Browse FAQs</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Form -->
+    <section class="contact-form-section" id="contact-form">
+        <div class="container">
+            <div class="form-container">
+                <div class="form-header">
+                    <h2>Send us a message</h2>
+                    <p>Fill out the form below and we'll get back to you as soon as possible.</p>
+                </div>
+
+                <form class="contact-form" id="supportForm">
+                    <!-- Contact Method Selection -->
+                    <div class="form-group">
+                        <label class="form-label">How would you like us to respond?</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="contactMethod" value="email" checked>
+                                <span class="radio-button"></span>
+                                <span class="radio-label">Email Response</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="contactMethod" value="ticket">
+                                <span class="radio-button"></span>
+                                <span class="radio-label">Create Support Ticket</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Personal Information -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="firstName" class="form-label">First Name *</label>
+                            <input type="text" id="firstName" name="firstName" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="lastName" class="form-label">Last Name *</label>
+                            <input type="text" id="lastName" name="lastName" class="form-input" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email Address *</label>
+                        <input type="email" id="email" name="email" class="form-input" required>
+                    </div>
+
+                    <!-- Issue Category -->
+                    <div class="form-group">
+                        <label for="category" class="form-label">What can we help you with? *</label>
+                        <select id="category" name="category" class="form-select" required>
+                            <option value="">Select a category...</option>
+                            <option value="technical">Technical Issue</option>
+                            <option value="billing">Billing & Subscription</option>
+                            <option value="account">Account Management</option>
+                            <option value="analysis">Analysis Questions</option>
+                            <option value="video-upload">Video Upload Issues</option>
+                            <option value="api">API & Integration</option>
+                            <option value="feature-request">Feature Request</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Priority Level -->
+                    <div class="form-group">
+                        <label for="priority" class="form-label">Priority Level</label>
+                        <select id="priority" name="priority" class="form-select">
+                            <option value="low">Low - General question</option>
+                            <option value="medium" selected>Medium - Need help soon</option>
+                            <option value="high">High - Issue affecting my work</option>
+                            <option value="urgent">Urgent - Critical business impact</option>
+                        </select>
+                    </div>
+
+                    <!-- Subject -->
+                    <div class="form-group">
+                        <label for="subject" class="form-label">Subject *</label>
+                        <input type="text" id="subject" name="subject" class="form-input" placeholder="Brief description of your issue" required>
+                    </div>
+
+                    <!-- Message -->
+                    <div class="form-group">
+                        <label for="message" class="form-label">Message *</label>
+                        <textarea id="message" name="message" class="form-textarea" rows="6" placeholder="Please provide as much detail as possible about your issue or question..." required></textarea>
+                        <div class="character-count">
+                            <span id="charCount">0</span> / 2000 characters
+                        </div>
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="form-group">
+                        <label for="attachments" class="form-label">Attachments (Optional)</label>
+                        <div class="file-upload-area" id="fileUploadArea">
+                            <input type="file" id="attachments" name="attachments" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.txt,.log" class="file-input">
+                            <div class="file-upload-content">
+                                <svg class="upload-icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/>
+                                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                                </svg>
+                                <p>Click to upload files or drag and drop</p>
+                                <span class="file-info">Screenshots, logs, or related files (Max 10MB each)</span>
+                            </div>
+                        </div>
+                        <div id="uploadedFiles" class="uploaded-files"></div>
+                    </div>
+
+                    <!-- Account Information -->
+                    <div class="form-group">
+                        <label class="form-label">Account Information (Optional)</label>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="userId" class="form-label">User ID</label>
+                                <input type="text" id="userId" name="userId" class="form-input" placeholder="If known">
+                            </div>
+                            <div class="form-group">
+                                <label for="subscriptionPlan" class="form-label">Subscription Plan</label>
+                                <select id="subscriptionPlan" name="subscriptionPlan" class="form-select">
+                                    <option value="">Select plan...</option>
+                                    <option value="free">Free Plan</option>
+                                    <option value="pro">Pro Plan</option>
+                                    <option value="enterprise">Enterprise Plan</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Consent -->
+                    <div class="form-group">
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="consent" required>
+                            <span class="checkbox-button"></span>
+                            <span class="checkbox-label">I agree to the <a href="/privacy" target="_blank">Privacy Policy</a> and consent to Basketball Analysis processing my data to respond to this inquiry. *</span>
+                        </label>
+                    </div>
+
+                    <!-- Newsletter Signup -->
+                    <div class="form-group">
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="newsletter">
+                            <span class="checkbox-button"></span>
+                            <span class="checkbox-label">I'd like to receive product updates and basketball tips via email</span>
+                        </label>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="form-actions">
+                        <button type="submit" class="submit-button" id="submitButton">
+                            <span class="button-text">Send Message</span>
+                            <span class="button-loader" style="display: none;">
+                                <svg class="spinner" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+                                    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" opacity="0.75"/>
+                                </svg>
+                                Sending...
+                            </span>
+                        </button>
+                        <p class="form-note">We typically respond within 4 hours during business hours</p>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Contact Information Sidebar -->
+            <div class="contact-info-sidebar">
+                <div class="info-card">
+                    <h3>Other Ways to Reach Us</h3>
+                    
+                    <div class="contact-method">
+                        <div class="method-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="method-details">
+                            <strong>Email</strong>
+                            <span>support@basketball-analysis.com</span>
+                        </div>
+                    </div>
+
+                    <div class="contact-method">
+                        <div class="method-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                        </div>
+                        <div class="method-details">
+                            <strong>Community Forum</strong>
+                            <span>Get help from other users</span>
+                        </div>
+                    </div>
+
+                    <div class="contact-method">
+                        <div class="method-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 12h6M9 16h6M9 8h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="method-details">
+                            <strong>Knowledge Base</strong>
+                            <span>Self-service resources</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>Response Times</h3>
+                    <div class="response-times">
+                        <div class="response-item">
+                            <span class="plan">Free Plan</span>
+                            <span class="time">24-48 hours</span>
+                        </div>
+                        <div class="response-item">
+                            <span class="plan">Pro Plan</span>
+                            <span class="time">4-8 hours</span>
+                        </div>
+                        <div class="response-item">
+                            <span class="plan">Enterprise</span>
+                            <span class="time">1-2 hours</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>Support Hours</h3>
+                    <div class="support-hours">
+                        <div class="hours-item">
+                            <span>Live Chat</span>
+                            <span>9AM-5PM EST</span>
+                        </div>
+                        <div class="hours-item">
+                            <span>Email Support</span>
+                            <span>24/7</span>
+                        </div>
+                        <div class="hours-item">
+                            <span>Phone (Enterprise)</span>
+                            <span>9AM-8PM EST</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Success Message -->
+    <div id="successMessage" class="success-overlay" style="display: none;">
+        <div class="success-content">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <h3>Message Sent Successfully!</h3>
+            <p id="successText">Thank you for contacting us. We'll get back to you within 4 hours.</p>
+            <button onclick="closeSuccessMessage()" class="success-button">Close</button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="/privacy">Privacy Policy</a>
+                    <a href="/terms">Terms of Service</a>
+                    <a href="/help">Help Center</a>
+                    <a href="/status">System Status</a>
+                </div>
+                <p class="copyright">© 2025 Basketball Analysis. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/js/contact.js"></script>
+</body>
+</html>

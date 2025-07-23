@@ -1,0 +1,185 @@
+# Basketball Analysis Service - SSL/TLS Certificate Management
+# cert-manager configuration for automatic certificate provisioning
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+
+---
+# ClusterIssuer for Let's Encrypt production certificates
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # The ACME server URL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email address used for ACME registration
+    email: admin@basketballanalysis.com
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    # Enable the HTTP-01 challenge provider
+    solvers:
+    - http01:
+        ingress:
+          class: alb
+
+---
+# ClusterIssuer for Let's Encrypt staging (for testing)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@basketballanalysis.com
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+    - http01:
+        ingress:
+          class: alb
+
+---
+# Certificate for production domain
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: basketball-analysis-tls
+  namespace: basketball-analysis
+spec:
+  secretName: basketball-analysis-tls-secret
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - basketballanalysis.com
+  - www.basketballanalysis.com
+  - app.basketballanalysis.com
+  - api.basketballanalysis.com
+
+---
+# Updated Ingress with TLS configuration
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: basketball-analysis-ingress-tls
+  namespace: basketball-analysis
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-west-2:YOUR_ACCOUNT:certificate/YOUR_CERT_ID
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    
+    # Security headers
+    alb.ingress.kubernetes.io/actions.response-headers: |
+      {
+        "Type": "fixed-response",
+        "FixedResponseConfig": {
+          "ContentType": "text/plain",
+          "StatusCode": "200",
+          "ResponseHeaders": {
+            "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+          }
+        }
+      }
+    
+    # Rate limiting
+    alb.ingress.kubernetes.io/actions.rate-limit: |
+      {
+        "Type": "fixed-response",
+        "FixedResponseConfig": {
+          "ContentType": "application/json",
+          "StatusCode": "429",
+          "MessageBody": "{\"error\": \"Rate limit exceeded\"}"
+        }
+      }
+    
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    
+spec:
+  tls:
+  - hosts:
+    - basketballanalysis.com
+    - www.basketballanalysis.com
+    - app.basketballanalysis.com
+    - api.basketballanalysis.com
+    secretName: basketball-analysis-tls-secret
+  rules:
+  - host: basketballanalysis.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: basketball-analysis-web-service
+            port:
+              number: 80
+  - host: www.basketballanalysis.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: basketball-analysis-web-service
+            port:
+              number: 80
+  - host: app.basketballanalysis.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: basketball-analysis-web-service
+            port:
+              number: 80
+  - host: api.basketballanalysis.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: basketball-analysis-web-service
+            port:
+              number: 80
+
+---
+# Security context and pod security standards
+apiVersion: v1
+kind: Pod
+metadata:
+  name: basketball-analysis-security-test
+  namespace: basketball-analysis
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 2000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+  - name: test
+    image: busybox
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      readOnlyRootFilesystem: true
+    command: ["sleep", "3600"]
