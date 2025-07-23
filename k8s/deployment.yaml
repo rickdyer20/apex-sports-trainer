@@ -1,0 +1,225 @@
+# Kubernetes Deployment Configuration
+# Basketball Shot Analysis Service
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: basketball-analysis
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: basketball-config
+  namespace: basketball-analysis
+data:
+  REDIS_HOST: "redis-service"
+  POSTGRES_HOST: "postgres-service"
+  STORAGE_BACKEND: "s3"
+  MAX_VIDEO_SIZE: "100MB"
+  PROCESSING_TIMEOUT: "300"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basketball-secrets
+  namespace: basketball-analysis
+type: Opaque
+data:
+  # Base64 encoded values
+  postgres-password: <base64-encoded-password>
+  redis-password: <base64-encoded-password>
+  aws-access-key: <base64-encoded-key>
+  aws-secret-key: <base64-encoded-secret>
+  jwt-secret: <base64-encoded-jwt-secret>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basketball-web
+  namespace: basketball-analysis
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: basketball-web
+  template:
+    metadata:
+      labels:
+        app: basketball-web
+    spec:
+      containers:
+      - name: web
+        image: your-registry/basketball-analysis:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: FLASK_ENV
+          value: "production"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: basketball-secrets
+              key: postgres-password
+        envFrom:
+        - configMapRef:
+            name: basketball-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basketball-worker
+  namespace: basketball-analysis
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: basketball-worker
+  template:
+    metadata:
+      labels:
+        app: basketball-worker
+    spec:
+      containers:
+      - name: worker
+        image: your-registry/basketball-analysis:latest
+        command: ["python", "worker.py"]
+        env:
+        - name: WORKER_TYPE
+          value: "video_processor"
+        envFrom:
+        - configMapRef:
+            name: basketball-config
+        - secretKeyRef:
+            name: basketball-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: temp-storage
+          mountPath: /tmp/processing
+      volumes:
+      - name: temp-storage
+        emptyDir:
+          sizeLimit: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: basketball-web-service
+  namespace: basketball-analysis
+spec:
+  selector:
+    app: basketball-web
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: basketball-ingress
+  namespace: basketball-analysis
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  tls:
+  - hosts:
+    - api.basketballanalysis.com
+    secretName: basketball-tls
+  rules:
+  - host: api.basketballanalysis.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: basketball-web-service
+            port:
+              number: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: basketball-web-hpa
+  namespace: basketball-analysis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: basketball-web
+  minReplicas: 3
+  maxReplicas: 50
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: basketball-worker-hpa
+  namespace: basketball-analysis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: basketball-worker
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60

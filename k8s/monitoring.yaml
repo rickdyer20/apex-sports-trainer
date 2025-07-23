@@ -1,0 +1,412 @@
+# Monitoring & Observability Stack
+# Prometheus, Grafana, and AlertManager for Basketball Analysis Service
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    
+    scrape_configs:
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+      
+      - job_name: 'basketball-web'
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          action: keep
+          regex: basketball-web
+        - source_labels: [__address__]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?
+          replacement: ${1}:5000
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: instance
+      
+      - job_name: 'basketball-worker'
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          action: keep
+          regex: basketball-worker
+        - source_labels: [__address__]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?
+          replacement: ${1}:8000
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: instance
+      
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+        - role: node
+        relabel_configs:
+        - source_labels: [__address__]
+          regex: '(.*):10250'
+          replacement: '${1}:9100'
+          target_label: __address__
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: instance
+
+  alert_rules.yml: |
+    groups:
+    - name: basketball-analysis.rules
+      rules:
+      - alert: HighErrorRate
+        expr: rate(flask_http_request_exceptions_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+      
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(flask_http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }} seconds"
+      
+      - alert: VideoProcessingQueueBackup
+        expr: celery_queue_length{queue="video_processing"} > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Video processing queue backup"
+          description: "Queue length is {{ $value }} jobs"
+      
+      - alert: DatabaseConnectionIssues
+        expr: postgresql_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection lost"
+          description: "PostgreSQL database is unreachable"
+      
+      - alert: RedisConnectionIssues
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis connection lost"
+          description: "Redis cache is unreachable"
+      
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on instance {{ $labels.instance }}"
+      
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% on instance {{ $labels.instance }}"
+      
+      - alert: DiskSpaceRunningLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space running low"
+          description: "Disk usage is {{ $value }}% on {{ $labels.device }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  basketball-analysis-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Basketball Analysis Service",
+        "tags": ["basketball", "analysis"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(flask_http_request_total[5m])",
+                "legendFormat": "{{method}} {{endpoint}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "unit": "reqps"
+              }
+            ]
+          },
+          {
+            "title": "Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(flask_http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.50, rate(flask_http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              }
+            ],
+            "yAxes": [
+              {
+                "unit": "s"
+              }
+            ]
+          },
+          {
+            "title": "Video Processing Queue",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "celery_queue_length{queue=\"video_processing\"}",
+                "legendFormat": "Queue Length"
+              }
+            ]
+          },
+          {
+            "title": "Processing Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "rate(celery_task_total{state=\"SUCCESS\"}[5m]) / rate(celery_task_total[5m]) * 100",
+                "legendFormat": "Success Rate %"
+              }
+            ]
+          },
+          {
+            "title": "System Resources",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+                "legendFormat": "CPU Usage %"
+              },
+              {
+                "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+                "legendFormat": "Memory Usage %"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alerts@basketballanalysis.com'
+    
+    route:
+      group_by: ['alertname']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'web.hook'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+      - match:
+          severity: warning
+        receiver: 'warning-alerts'
+    
+    receivers:
+    - name: 'web.hook'
+      webhook_configs:
+      - url: 'http://localhost:5001/'
+    
+    - name: 'critical-alerts'
+      email_configs:
+      - to: 'ops-team@basketballanalysis.com'
+        subject: 'CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          {{ end }}
+      slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#alerts'
+        title: 'CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+    
+    - name: 'warning-alerts'
+      slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#monitoring'
+        title: 'WARNING: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/prometheus
+        - name: storage-volume
+          mountPath: /prometheus
+        command:
+        - '/bin/prometheus'
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--web.console.libraries=/etc/prometheus/console_libraries'
+        - '--web.console.templates=/etc/prometheus/consoles'
+        - '--web.enable-lifecycle'
+        resources:
+          requests:
+            memory: "400Mi"
+            cpu: "100m"
+          limits:
+            memory: "800Mi"
+            cpu: "200m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: prometheus-config
+      - name: storage-volume
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.1.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin123"
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        resources:
+          requests:
+            memory: "200Mi"
+            cpu: "100m"
+          limits:
+            memory: "400Mi"
+            cpu: "200m"
+      volumes:
+      - name: grafana-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: LoadBalancer
