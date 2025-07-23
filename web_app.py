@@ -710,4 +710,6 @@ if __name__ == '__main__':
     print("\n🌐 Starting web server at http://127.0.0.1:5000")
     print("📝 Upload a basketball shot video to begin analysis!")
     
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    # Only run directly if not being imported
+    if __name__ == '__main__':
+        app.run(debug=True, host='127.0.0.1', port=5000)

@@ -177,7 +177,7 @@ class ProductionStartup:
         
         try:
             # Production WSGI server configuration
-            if os.getenv('USE_GUNICORN', 'true').lower() == 'true':
+            if os.getenv('USE_GUNICORN', 'false').lower() == 'true':
                 # Use Gunicorn for production
                 workers = os.getenv('WORKERS_PER_CORE', 2)
                 max_workers = os.getenv('MAX_WORKERS', 8)
