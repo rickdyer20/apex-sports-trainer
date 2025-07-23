@@ -1,0 +1,477 @@
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+import os
+import uuid
+from werkzeug.utils import secure_filename
+from datetime import datetime
+import json
+import threading
+import time
+
+# Import our basketball analysis service
+from basketball_analysis_service import (
+    VideoAnalysisJob, 
+    process_video_for_analysis, 
+    load_ideal_shot_data
+)
+
+app = Flask(__name__)
+app.secret_key = 'basketball_analysis_secret_key_2025'
+
+# Configuration
+UPLOAD_FOLDER = 'uploads'
+RESULTS_FOLDER = 'results'
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv'}
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+# Create directories if they don't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULTS_FOLDER, exist_ok=True)
+
+# In-memory storage for demo (in production, use a database)
+analysis_jobs = {}
+job_results = {}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def process_video_async(job_id, video_path, ideal_data):
+    """Process video analysis in background thread"""
+    try:
+        # Update job status
+        analysis_jobs[job_id]['status'] = 'PROCESSING'
+        analysis_jobs[job_id]['updated_at'] = datetime.now()
+        
+        # Create job object
+        job = VideoAnalysisJob(
+            job_id=job_id,
+            user_id="web_user",
+            video_url=video_path
+        )
+        
+        # Process the video
+        analysis_results = process_video_for_analysis(job, ideal_data)
+        
+        # Store results
+        output_video = f"temp_{job_id}_analyzed.mp4"
+        if os.path.exists(output_video):
+            # Move to results folder
+            result_video_path = os.path.join(RESULTS_FOLDER, f"{job_id}_analyzed.mp4")
+            os.rename(output_video, result_video_path)
+            
+            # Move flaw stills to results folder
+            flaw_stills_results = []
+            if analysis_results and 'flaw_stills' in analysis_results:
+                for flaw_still in analysis_results['flaw_stills']:
+                    original_path = flaw_still['file_path']
+                    if os.path.exists(original_path):
+                        # Create a more user-friendly filename
+                        flaw_type = flaw_still['flaw_data']['flaw_type']
+                        frame_num = flaw_still['frame_number']
+                        new_filename = f"{job_id}_flaw_{flaw_type}_frame_{frame_num}.png"
+                        new_path = os.path.join(RESULTS_FOLDER, new_filename)
+                        os.rename(original_path, new_path)
+                        
+                        flaw_stills_results.append({
+                            'file_path': new_path,
+                            'filename': new_filename,
+                            'flaw_data': flaw_still['flaw_data'],
+                            'frame_number': flaw_still['frame_number']
+                        })
+            
+            # Move feedback stills to results folder  
+            feedback_stills_results = []
+            if analysis_results and 'feedback_stills' in analysis_results:
+                for frame_num, still_path in analysis_results['feedback_stills'].items():
+                    if os.path.exists(still_path):
+                        new_filename = f"{job_id}_feedback_frame_{frame_num}.png"
+                        new_path = os.path.join(RESULTS_FOLDER, new_filename)
+                        os.rename(still_path, new_path)
+                        
+                        feedback_stills_results.append({
+                            'file_path': new_path,
+                            'filename': new_filename,
+                            'frame_number': frame_num
+                        })
+            
+            # Move improvement plan PDF to results folder
+            improvement_plan_pdf = None
+            if analysis_results and 'improvement_plan_pdf' in analysis_results:
+                original_pdf_path = analysis_results['improvement_plan_pdf']
+                if original_pdf_path and os.path.exists(original_pdf_path):
+                    new_pdf_filename = f"{job_id}_60_Day_Improvement_Plan.pdf"
+                    new_pdf_path = os.path.join(RESULTS_FOLDER, new_pdf_filename)
+                    os.rename(original_pdf_path, new_pdf_path)
+                    improvement_plan_pdf = {
+                        'file_path': new_pdf_path,
+                        'filename': new_pdf_filename
+                    }
+            
+            job_results[job_id] = {
+                'video_path': result_video_path,
+                'analysis_complete': True,
+                'processed_at': datetime.now(),
+                'flaw_stills': flaw_stills_results,
+                'feedback_stills': feedback_stills_results,
+                'detailed_flaws': analysis_results.get('detailed_flaws', []) if analysis_results else [],
+                'shot_phases': analysis_results.get('shot_phases', []) if analysis_results else [],
+                'feedback_points': analysis_results.get('feedback_points', []) if analysis_results else [],
+                'improvement_plan_pdf': improvement_plan_pdf
+            }
+        
+        # Update job status
+        analysis_jobs[job_id]['status'] = 'COMPLETED'
+        analysis_jobs[job_id]['updated_at'] = datetime.now()
+        
+    except Exception as e:
+        print(f"Error processing job {job_id}: {e}")
+        analysis_jobs[job_id]['status'] = 'FAILED'
+        analysis_jobs[job_id]['error'] = str(e)
+        analysis_jobs[job_id]['updated_at'] = datetime.now()
+
+@app.route('/')
+def index():
+    """Main upload page"""
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_video():
+    """Handle video upload and start analysis"""
+    print("Upload route called")
+    print("request.files:", request.files)
+    print("request.form:", request.form)
+    
+    if 'video' not in request.files:
+        print("No 'video' key in request.files")
+        flash('No video file selected')
+        return redirect(url_for('index'))
+    
+    file = request.files['video']
+    print("File object:", file)
+    print("File filename:", file.filename)
+    
+    if file.filename == '':
+        print("Empty filename")
+        flash('No video file selected')
+        return redirect(url_for('index'))
+    
+    if not allowed_file(file.filename):
+        print("File type not allowed:", file.filename)
+        flash('Invalid file type. Please upload MP4, AVI, MOV, or MKV files.')
+        return redirect(url_for('index'))
+    
+    # Check file size
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    
+    if file_size > MAX_FILE_SIZE:
+        flash('File too large. Maximum size is 100MB.')
+        return redirect(url_for('index'))
+    
+    # Save the uploaded file
+    job_id = str(uuid.uuid4())
+    filename = secure_filename(file.filename)
+    file_extension = filename.rsplit('.', 1)[1].lower()
+    saved_filename = f"{job_id}.{file_extension}"
+    filepath = os.path.join(UPLOAD_FOLDER, saved_filename)
+    file.save(filepath)
+    
+    # Create job record
+    analysis_jobs[job_id] = {
+        'job_id': job_id,
+        'filename': filename,
+        'filepath': filepath,
+        'status': 'PENDING',
+        'created_at': datetime.now(),
+        'updated_at': datetime.now()
+    }
+    
+    # Load ideal shot data
+    ideal_data = load_ideal_shot_data('ideal_shot_guide.json')
+    
+    # Start background processing
+    thread = threading.Thread(
+        target=process_video_async, 
+        args=(job_id, filepath, ideal_data)
+    )
+    thread.daemon = True
+    thread.start()
+    
+    flash(f'Video uploaded successfully! Analysis started for job: {job_id}')
+    return redirect(url_for('analysis_status', job_id=job_id))
+
+@app.route('/status/<job_id>')
+def analysis_status(job_id):
+    """Show analysis status page"""
+    if job_id not in analysis_jobs:
+        flash('Job not found')
+        return redirect(url_for('index'))
+    
+    job = analysis_jobs[job_id]
+    return render_template('status.html', job=job, job_id=job_id)
+
+@app.route('/api/status/<job_id>')
+def api_status(job_id):
+    """API endpoint for checking job status"""
+    if job_id not in analysis_jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    job = analysis_jobs[job_id]
+    response = {
+        'job_id': job_id,
+        'status': job['status'],
+        'created_at': job['created_at'].isoformat(),
+        'updated_at': job['updated_at'].isoformat()
+    }
+    
+    if job['status'] == 'COMPLETED' and job_id in job_results:
+        response['results_available'] = True
+        response['download_url'] = url_for('download_result', job_id=job_id)
+    elif job['status'] == 'FAILED':
+        response['error'] = job.get('error', 'Unknown error')
+    
+    return jsonify(response)
+
+@app.route('/results/<job_id>')
+def view_results(job_id):
+    """View analysis results"""
+    if job_id not in analysis_jobs or analysis_jobs[job_id]['status'] != 'COMPLETED':
+        flash('Analysis not completed or job not found')
+        return redirect(url_for('index'))
+    
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    job = analysis_jobs[job_id]
+    results = job_results[job_id]
+    
+    return render_template('results.html', job=job, results=results, job_id=job_id)
+
+@app.route('/download/<job_id>')
+def download_result(job_id):
+    """Download analyzed video"""
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    video_path = job_results[job_id]['video_path']
+    if not os.path.exists(video_path):
+        flash('Result video not found')
+        return redirect(url_for('index'))
+    
+    return send_file(
+        video_path,
+        as_attachment=True,
+        download_name=f"analyzed_shot_{job_id}.mp4",
+        mimetype='video/mp4'
+    )
+
+@app.route('/download_flaw_still/<job_id>/<int:still_index>')
+def download_flaw_still(job_id, still_index):
+    """Download specific flaw analysis still"""
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    flaw_stills = job_results[job_id].get('flaw_stills', [])
+    if still_index >= len(flaw_stills):
+        flash('Still frame not found')
+        return redirect(url_for('view_results', job_id=job_id))
+    
+    still_info = flaw_stills[still_index]
+    still_path = still_info['file_path']
+    
+    if not os.path.exists(still_path):
+        flash('Still frame file not found')
+        return redirect(url_for('view_results', job_id=job_id))
+    
+    return send_file(
+        still_path,
+        as_attachment=True,
+        download_name=still_info['filename'],
+        mimetype='image/png'
+    )
+
+@app.route('/download_improvement_plan/<job_id>')
+def download_improvement_plan(job_id):
+    """Download 60-day improvement plan PDF"""
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    improvement_plan = job_results[job_id].get('improvement_plan_pdf')
+    if not improvement_plan or not os.path.exists(improvement_plan['file_path']):
+        flash('Improvement plan PDF not available')
+        return redirect(url_for('view_results', job_id=job_id))
+    
+    return send_file(
+        improvement_plan['file_path'],
+        as_attachment=True,
+        download_name=improvement_plan['filename'],
+        mimetype='application/pdf'
+    )
+
+@app.route('/download_complete_package/<job_id>')
+def download_complete_package(job_id):
+    """Download complete analysis package including video, stills, and PDF"""
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    import zipfile
+    import io
+    
+    results = job_results[job_id]
+    
+    # Create ZIP file in memory
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Add analyzed video
+        video_path = results.get('video_path')
+        if video_path and os.path.exists(video_path):
+            zip_file.write(video_path, f"analyzed_video_{job_id}.mp4")
+        
+        # Add improvement plan PDF
+        improvement_plan = results.get('improvement_plan_pdf')
+        if improvement_plan and os.path.exists(improvement_plan['file_path']):
+            zip_file.write(improvement_plan['file_path'], improvement_plan['filename'])
+        
+        # Add flaw analysis stills
+        flaw_stills = results.get('flaw_stills', [])
+        if flaw_stills:
+            for still in flaw_stills:
+                if os.path.exists(still['file_path']):
+                    zip_file.write(still['file_path'], f"flaw_analysis/{still['filename']}")
+        
+        # Add feedback stills
+        feedback_stills = results.get('feedback_stills', [])
+        if feedback_stills:
+            for still in feedback_stills:
+                if os.path.exists(still['file_path']):
+                    zip_file.write(still['file_path'], f"feedback_frames/{still['filename']}")
+        
+        # Add summary text file
+        summary_content = f"""BASKETBALL SHOT ANALYSIS SUMMARY
+Analysis ID: {job_id}
+Analysis Date: {results['processed_at'].strftime('%B %d, %Y at %I:%M %p')}
+
+PACKAGE CONTENTS:
+- analyzed_video_{job_id}.mp4: Slow-motion video with pose overlays and analysis
+- {improvement_plan['filename'] if improvement_plan else 'N/A'}: Comprehensive 60-day improvement plan
+- flaw_analysis/: Frame stills showing detected flaws with coaching overlays
+- feedback_frames/: Additional feedback frame captures
+
+DETECTED FLAWS: {len(results.get('detailed_flaws', []))}
+"""
+        
+        for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
+            summary_content += f"""
+{i}. {flaw.get('flaw_type', 'Unknown').replace('_', ' ').title()}
+   Severity: {flaw.get('severity', 0):.1f}/100
+   Phase: {flaw.get('phase', 'Unknown')}
+   Issue: {flaw.get('plain_language', 'No description available')}
+"""
+        
+        summary_content += f"""
+
+NEXT STEPS:
+1. Review the 60-day improvement plan PDF for detailed training guidance
+2. Study the flaw analysis images to understand specific issues
+3. Follow the progressive drill recommendations
+4. Re-analyze your shot every 2 weeks using the Basketball Analysis App
+5. Track your progress using the provided benchmarks
+
+For questions or support, visit: www.basketballanalysis.ai
+"""
+        
+        zip_file.writestr(f"Analysis_Summary_{job_id}.txt", summary_content)
+    
+    zip_buffer.seek(0)
+    
+    return send_file(
+        io.BytesIO(zip_buffer.read()),
+        as_attachment=True,
+        download_name=f"Complete_Basketball_Analysis_{job_id}.zip",
+        mimetype='application/zip'
+    )
+
+@app.route('/download_all_stills/<job_id>')
+def download_all_stills(job_id):
+    """Download all flaw analysis stills as a ZIP file"""
+    if job_id not in job_results:
+        flash('Results not available')
+        return redirect(url_for('index'))
+    
+    import zipfile
+    import io
+    
+    flaw_stills = job_results[job_id].get('flaw_stills', [])
+    feedback_stills = job_results[job_id].get('feedback_stills', [])
+    
+    if not flaw_stills and not feedback_stills:
+        flash('No still frames available for download')
+        return redirect(url_for('view_results', job_id=job_id))
+    
+    # Create ZIP file in memory
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Add flaw analysis stills
+        for still in flaw_stills:
+            if os.path.exists(still['file_path']):
+                zip_file.write(still['file_path'], still['filename'])
+        
+        # Add feedback stills
+        for still in feedback_stills:
+            if os.path.exists(still['file_path']):
+                zip_file.write(still['file_path'], still['filename'])
+    
+    zip_buffer.seek(0)
+    
+    return send_file(
+        io.BytesIO(zip_buffer.read()),
+        as_attachment=True,
+        download_name=f"shot_analysis_stills_{job_id}.zip",
+        mimetype='application/zip'
+    )
+
+@app.route('/history')
+def view_history():
+    """View analysis history"""
+    # Sort jobs by creation date (newest first)
+    sorted_jobs = sorted(
+        analysis_jobs.items(),
+        key=lambda x: x[1]['created_at'],
+        reverse=True
+    )
+    return render_template('history.html', jobs=sorted_jobs)
+
+@app.route('/about')
+def about():
+    """About page explaining the analysis"""
+    return render_template('about.html')
+
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'Basketball Analysis Service',
+        'timestamp': datetime.now().isoformat(),
+        'active_jobs': len([j for j in analysis_jobs.values() if j['status'] == 'PROCESSING'])
+    })
+
+if __name__ == '__main__':
+    print("🏀 Basketball Analysis Web Service Starting...")
+    print("📊 Service Features:")
+    print("   • Video upload and analysis")
+    print("   • Real-time progress tracking")
+    print("   • Biomechanical feedback")
+    print("   • Downloadable results")
+    print("   • Analysis history")
+    print("\n🌐 Starting web server at http://127.0.0.1:5000")
+    print("📝 Upload a basketball shot video to begin analysis!")
+    
+    app.run(debug=True, host='127.0.0.1', port=5000)

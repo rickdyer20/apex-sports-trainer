@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        About Basketball Shot Analysis
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h4>How It Works</h4>
+                            <p>
+                                Our basketball shot analysis service uses cutting-edge computer vision and 
+                                biomechanical assessment to provide professional-grade feedback on your shooting form.
+                            </p>
+                            
+                            <h5>Technology Stack</h5>
+                            <ul>
+                                <li><strong>MediaPipe:</strong> Google's pose estimation framework for real-time body landmark detection</li>
+                                <li><strong>OpenCV:</strong> Video processing and computer vision operations</li>
+                                <li><strong>Biomechanical Analysis:</strong> Advanced joint angle calculations and movement assessment</li>
+                                <li><strong>Machine Learning:</strong> Intelligent phase detection and feedback generation</li>
+                            </ul>
+                            
+                            <h5>Analysis Features</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Joint Angle Analysis</h6>
+                                    <ul class="small">
+                                        <li>Elbow extension measurement</li>
+                                        <li>Knee bend assessment</li>
+                                        <li>Wrist snap analysis</li>
+                                        <li>Hip and shoulder alignment</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Shot Phase Detection</h6>
+                                    <ul class="small">
+                                        <li>Load/Dip phase identification</li>
+                                        <li>Ascent and power generation</li>
+                                        <li>Release point detection</li>
+                                        <li>Follow-through analysis</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <h5>Coaching Methodology</h5>
+                            <p>
+                                Our analysis is based on proven basketball shooting fundamentals used by 
+                                professional coaches and sports scientists. The system compares your form 
+                                against ideal biomechanical ranges and provides specific, actionable feedback.
+                            </p>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Ideal Shot Metrics</h6>
+                                </div>
+                                <div class="card-body small">
+                                    <div class="mb-3">
+                                        <strong>Elbow Extension:</strong><br>
+                                        160° - 180° at release
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Knee Bend:</strong><br>
+                                        110° - 130° during load
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Shot Arc:</strong><br>
+                                        45° - 50° optimal trajectory
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Release Time:</strong><br>
+                                        0.8 - 1.2 seconds total
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card bg-warning bg-opacity-25 mt-3">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-lightbulb fa-2x text-warning mb-2"></i>
+                                    <h6>Pro Tip</h6>
+                                    <p class="small mb-0">
+                                        Record from the side for best analysis results. 
+                                        Ensure good lighting and clear view of your shooting form.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Technical Details -->
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>System Architecture</h5>
+                            <p class="small">
+                                Built with production-ready architecture featuring:
+                            </p>
+                            <ul class="small">
+                                <li>Scalable cloud processing</li>
+                                <li>Real-time status tracking</li>
+                                <li>Comprehensive error handling</li>
+                                <li>Secure file management</li>
+                                <li>Professional logging and monitoring</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Supported Formats</h5>
+                            <p class="small">Upload videos in these formats:</p>
+                            <ul class="small">
+                                <li><strong>MP4:</strong> Recommended for best compatibility</li>
+                                <li><strong>AVI:</strong> Windows-native format</li>
+                                <li><strong>MOV:</strong> Apple QuickTime format</li>
+                                <li><strong>MKV:</strong> Open-source container</li>
+                            </ul>
+                            <p class="small text-muted">
+                                Maximum file size: 100MB<br>
+                                Recommended resolution: 720p or higher
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Getting Started -->
+                    <hr>
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-rocket me-2"></i>Ready to Get Started?</h6>
+                        <p class="mb-2">
+                            Upload your basketball shot video and receive professional analysis in minutes!
+                        </p>
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Start Analysis
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

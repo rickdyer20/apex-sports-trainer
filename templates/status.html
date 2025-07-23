@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h3 class="card-title mb-0">
+                        <i class="fas fa-cog fa-spin me-2"></i>
+                        Analysis Status
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h5>Job ID: <code>{{ job_id }}</code></h5>
+                            <p class="text-muted mb-0">Original file: {{ job.filename }}</p>
+                        </div>
+                        <div class="text-end">
+                            <span id="status-badge" class="badge status-badge"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="mb-4">
+                        <div class="progress" style="height: 20px;">
+                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small id="progress-text" class="text-muted">Initializing...</small>
+                    </div>
+                    
+                    <!-- Status Messages -->
+                    <div id="status-messages">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Analysis started!</strong> Please wait while we process your video.
+                        </div>
+                    </div>
+                    
+                    <!-- Analysis Steps -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="step1-icon" class="mb-2">
+                                    <i class="fas fa-upload fa-2x text-muted"></i>
+                                </div>
+                                <small>Upload Complete</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="step2-icon" class="mb-2">
+                                    <i class="fas fa-eye fa-2x text-muted"></i>
+                                </div>
+                                <small>Pose Detection</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="step3-icon" class="mb-2">
+                                    <i class="fas fa-chart-line fa-2x text-muted"></i>
+                                </div>
+                                <small>Analysis</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="step4-icon" class="mb-2">
+                                    <i class="fas fa-check fa-2x text-muted"></i>
+                                </div>
+                                <small>Complete</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2">
+                        <button id="view-results-btn" class="btn btn-success" style="display: none;">
+                            <i class="fas fa-chart-bar me-2"></i>View Results
+                        </button>
+                        <button id="refresh-btn" class="btn btn-outline-primary">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Status
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-2"></i>New Analysis
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const jobId = '{{ job_id }}';
+let pollInterval;
+
+function updateStatus() {
+    fetch(`/api/status/${jobId}`)
+        .then(response => response.json())
+        .then(data => {
+            const statusBadge = document.getElementById('status-badge');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const statusMessages = document.getElementById('status-messages');
+            const viewResultsBtn = document.getElementById('view-results-btn');
+            
+            // Update status badge
+            let badgeClass = 'bg-secondary';
+            let progress = 0;
+            
+            switch(data.status) {
+                case 'PENDING':
+                    badgeClass = 'bg-warning';
+                    progress = 10;
+                    progressText.textContent = 'Waiting to start...';
+                    updateStepIcon('step1-icon', 'success');
+                    break;
+                case 'PROCESSING':
+                    badgeClass = 'bg-info';
+                    progress = 50;
+                    progressText.textContent = 'Analyzing video...';
+                    updateStepIcon('step1-icon', 'success');
+                    updateStepIcon('step2-icon', 'processing');
+                    updateStepIcon('step3-icon', 'processing');
+                    break;
+                case 'COMPLETED':
+                    badgeClass = 'bg-success';
+                    progress = 100;
+                    progressText.textContent = 'Analysis complete!';
+                    updateStepIcon('step1-icon', 'success');
+                    updateStepIcon('step2-icon', 'success');
+                    updateStepIcon('step3-icon', 'success');
+                    updateStepIcon('step4-icon', 'success');
+                    
+                    // Show results button
+                    viewResultsBtn.style.display = 'inline-block';
+                    viewResultsBtn.onclick = () => {
+                        window.location.href = `/results/${jobId}`;
+                    };
+                    
+                    // Update status message
+                    statusMessages.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Analysis Complete!</strong> Your basketball shot analysis is ready.
+                        </div>
+                    `;
+                    
+                    // Stop polling
+                    clearInterval(pollInterval);
+                    break;
+                case 'FAILED':
+                    badgeClass = 'bg-danger';
+                    progress = 100;
+                    progressText.textContent = 'Analysis failed';
+                    
+                    statusMessages.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Analysis Failed!</strong> ${data.error || 'Unknown error occurred.'}
+                        </div>
+                    `;
+                    
+                    // Stop polling
+                    clearInterval(pollInterval);
+                    break;
+            }
+            
+            statusBadge.className = `badge status-badge ${badgeClass}`;
+            statusBadge.textContent = data.status;
+            
+            progressBar.style.width = `${progress}%`;
+            progressBar.setAttribute('aria-valuenow', progress);
+        })
+        .catch(error => {
+            console.error('Error fetching status:', error);
+        });
+}
+
+function updateStepIcon(elementId, status) {
+    const element = document.getElementById(elementId);
+    const icon = element.querySelector('i');
+    
+    // Reset classes
+    icon.className = icon.className.replace(/text-\w+/, 'text-muted');
+    icon.className = icon.className.replace(/fa-spin/, '');
+    
+    switch(status) {
+        case 'success':
+            icon.className = icon.className.replace(/text-muted/, 'text-success');
+            break;
+        case 'processing':
+            icon.className = icon.className.replace(/text-muted/, 'text-primary');
+            icon.className += ' fa-spin';
+            break;
+    }
+}
+
+// Initialize
+updateStatus();
+
+// Start polling every 2 seconds
+pollInterval = setInterval(updateStatus, 2000);
+
+// Refresh button
+document.getElementById('refresh-btn').addEventListener('click', updateStatus);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+    }
+});
+</script>
+{% endblock %}
