@@ -35,12 +35,12 @@ RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app
 USER app
 
-# Health check endpoint
+# Health check endpoint  
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:$PORT/health || exit 1
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Expose port (use PORT env var for Railway)
-EXPOSE $PORT
+# Expose port (Railway will set PORT env var)
+EXPOSE 8080
 
 # Use gunicorn for production deployment
-CMD ["gunicorn", "--workers", "2", "--timeout", "60", "--bind", "0.0.0.0:$PORT", "--worker-class", "gthread", "--threads", "2", "wsgi:application"]
+CMD gunicorn --workers 2 --timeout 60 --bind 0.0.0.0:$PORT --worker-class gthread --threads 2 wsgi:application
