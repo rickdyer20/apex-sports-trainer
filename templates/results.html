@@ -57,7 +57,11 @@
                                             style="max-height: 500px; display: block; margin: 0 auto;"
                                             poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDgwMCA0NTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIiBmaWxsPSIjMjEzNTQ3Ii8+Cjx0ZXh0IHg9IjQwMCIgeT0iMjI1IiBmaWxsPSIjRkZGRkZGIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiPkxvYWRpbmcgQW5hbHlzaXMgVmlkZW8uLi48L3RleHQ+Cjwvc3ZnPgo=">
                                             <source src="{{ url_for('serve_video', job_id=job_id) }}" type="video/mp4">
-                                            Your browser does not support the video tag.
+                                            <p>Your browser does not support the video tag. 
+                                               <a href="{{ url_for('download_result', job_id=job_id) }}" class="btn btn-primary">
+                                                   <i class="fas fa-download me-2"></i>Download Video Instead
+                                               </a>
+                                            </p>
                                         </video>
                                         
                                         <!-- Video Controls Overlay -->

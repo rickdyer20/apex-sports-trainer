@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response
 import os
 import uuid
 from werkzeug.utils import secure_filename
@@ -33,6 +33,63 @@ job_results = {}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def ensure_web_compatible_video(video_path):
+    """Ensure video is web-compatible, convert if needed"""
+    if not os.path.exists(video_path):
+        return video_path
+    
+    # Check if video needs conversion
+    try:
+        import subprocess
+        
+        # Get video codec info
+        probe_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
+        result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            import json
+            probe_data = json.loads(result.stdout)
+            
+            # Check if video stream uses web-compatible codec
+            for stream in probe_data.get('streams', []):
+                if stream.get('codec_type') == 'video':
+                    codec = stream.get('codec_name', '')
+                    
+                    # If not H.264, convert it
+                    if codec != 'h264':
+                        web_path = video_path.replace('.mp4', '_web.mp4')
+                        
+                        # Convert to web-compatible format
+                        convert_cmd = [
+                            'ffmpeg', '-y',
+                            '-i', video_path,
+                            '-c:v', 'libx264',
+                            '-profile:v', 'baseline',
+                            '-level', '3.0',
+                            '-pix_fmt', 'yuv420p',
+                            '-movflags', '+faststart',
+                            '-preset', 'fast',
+                            '-crf', '23',
+                            web_path
+                        ]
+                        
+                        convert_result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=120)
+                        
+                        if convert_result.returncode == 0 and os.path.exists(web_path):
+                            # Replace original with converted version
+                            os.remove(video_path)
+                            os.rename(web_path, video_path)
+                            print(f"Converted video to web format: {video_path}")
+                            return video_path
+                        else:
+                            print(f"Video conversion failed: {convert_result.stderr}")
+                    break
+                    
+    except Exception as e:
+        print(f"Video compatibility check failed: {e}")
+    
+    return video_path
 
 def process_video_async(job_id, video_path, ideal_data):
     """Process video analysis in background thread"""
@@ -367,7 +424,7 @@ def download_result(job_id):
 
 @app.route('/video/<job_id>')
 def serve_video(job_id):
-    """Serve analyzed video for web playback"""
+    """Serve analyzed video for web playback with proper headers"""
     if job_id not in job_results:
         flash('Results not available')
         return redirect(url_for('index'))
@@ -377,12 +434,22 @@ def serve_video(job_id):
         flash('Result video not found')
         return redirect(url_for('index'))
     
-    return send_file(
-        video_path,
-        mimetype='video/mp4',
-        as_attachment=False,
-        download_name=f"analyzed_shot_{job_id}.mp4"
-    )
+    # Ensure video is web-compatible
+    video_path = ensure_web_compatible_video(video_path)
+    
+    def generate():
+        with open(video_path, 'rb') as f:
+            data = f.read(1024)
+            while data:
+                yield data
+                data = f.read(1024)
+    
+    response = Response(generate(), mimetype="video/mp4")
+    response.headers.add('Accept-Ranges', 'bytes')
+    response.headers.add('Cache-Control', 'no-cache')
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    
+    return response
 
 @app.route('/download_flaw_still/<job_id>/<int:still_index>')
 def download_flaw_still(job_id, still_index):

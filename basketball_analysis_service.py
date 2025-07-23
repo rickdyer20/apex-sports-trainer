@@ -575,7 +575,10 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     # --- Generate Visual Output (Slow-motion Video with Overlays & Stills) ---
     output_video_path = f"temp_{job.job_id}_analyzed.mp4"
     cap_reprocess = cv2.VideoCapture(local_video_path) # Re-open raw video for overlaying
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v') # Codec for output video
+    
+    # Use H.264 codec for web compatibility
+    fourcc = cv2.VideoWriter_fourcc(*'avc1') # H.264 codec (better web support than mp4v)
+    
     # Slower FPS for slow-motion playback
     out = cv2.VideoWriter(output_video_path, fourcc, fps / 4, (width, height)) # SLOW_MOTION_FACTOR = 4
 
@@ -658,6 +661,38 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     cap_reprocess.release()
     out.release()
     logging.info(f"Generated output video: {output_video_path}")
+
+    # Convert to web-compatible format using FFmpeg if needed
+    web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
+    try:
+        import subprocess
+        # Convert to H.264 with web-compatible settings
+        ffmpeg_cmd = [
+            'ffmpeg', '-y',  # -y overwrites output file
+            '-i', output_video_path,
+            '-c:v', 'libx264',  # H.264 video codec
+            '-profile:v', 'baseline',  # Baseline profile for maximum compatibility
+            '-level', '3.0',  # Compatibility level
+            '-pix_fmt', 'yuv420p',  # Pixel format for web compatibility
+            '-movflags', '+faststart',  # Move metadata to beginning for fast web streaming
+            '-preset', 'medium',  # Encoding preset
+            '-crf', '23',  # Quality setting (lower = better quality)
+            web_compatible_path
+        ]
+        
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=60)
+        
+        if result.returncode == 0 and os.path.exists(web_compatible_path):
+            # Replace original with web-compatible version
+            os.remove(output_video_path)
+            os.rename(web_compatible_path, output_video_path)
+            logging.info(f"Converted video to web-compatible format: {output_video_path}")
+        else:
+            logging.warning(f"FFmpeg conversion failed, using original format. Error: {result.stderr}")
+            
+    except Exception as e:
+        logging.warning(f"Could not convert video to web format: {e}. Using original format.")
+        # Continue with original video if FFmpeg fails
 
     # --- Store Results & Notify User ---
     # Upload the analyzed video and still frames to cloud storage
