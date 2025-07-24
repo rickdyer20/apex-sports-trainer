@@ -436,30 +436,40 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             logging.error(f"Failed to open video file: {local_video_path}")
             job.status = "FAILED"
             # Update job status in DB
-            return
+            return {
+                'analysis_report': None,
+                'output_video_path': None,
+                'feedback_stills': {},
+                'flaw_stills': [],
+                'detailed_flaws': [],
+                'shot_phases': [],
+                'feedback_points': [],
+                'improvement_plan_pdf': None,
+                'error': 'Failed to open video file'
+            }
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        processed_frames_data = [] # List of FrameData objects
-        current_frame_idx = 0
+    processed_frames_data = [] # List of FrameData objects
+    current_frame_idx = 0
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-            try:
-                # Convert the BGR image to RGB.
-                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                image.flags.writeable = False
-                results = pose_model.process(image)
-                image.flags.writeable = True
+        try:
+            # Convert the BGR image to RGB.
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image.flags.writeable = False
+            results = pose_model.process(image)
+            image.flags.writeable = True
 
-                frame_metrics = {}
-                if results and results.pose_landmarks:
+            frame_metrics = {}
+            if results and results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
 
                 # Calculate key angles and store them
@@ -626,11 +636,10 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         if current_frame_idx_output < len(processed_frames_data) and processed_frames_data[current_frame_idx_output].landmarks_raw:
             results_to_draw = processed_frames_data[current_frame_idx_output].landmarks_raw
             
-            # Draw skeleton only if pose landmarks exist
-            if results_to_draw and results_to_draw.pose_landmarks:
-                mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                         mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
-                                         mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
+            # Draw skeleton
+            mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                     mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
+                                     mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
 
             # Overlay phase information
             for phase in shot_phases:
@@ -765,6 +774,18 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.error(f"Error generating improvement plan PDF: {e}")
     
+    # Return analysis results including flaw stills for web app integration
+    return {
+        'analysis_report': analysis_report,
+        'output_video_path': output_video_path,
+        'feedback_stills': frame_for_still_capture,
+        'flaw_stills': flaw_stills_captured,
+        'detailed_flaws': detailed_flaws,
+        'shot_phases': shot_phases,
+        'feedback_points': feedback_points,
+        'improvement_plan_pdf': improvement_plan_pdf
+    }
+
     # Print summary of analysis
     print(f"\n=== ANALYSIS COMPLETE FOR JOB {job.job_id} ===")
     print(f"Phases identified: {len(shot_phases)}")
@@ -794,26 +815,32 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             if i <= len(flaw_stills_captured):
                 print(f"   Analysis Image: {flaw_stills_captured[i-1]['file_path']}")
 
-    # Clean up local temporary files
-    if os.path.exists(local_video_path):
-        os.remove(local_video_path)
-    
-    logging.info(f"Analysis for job {job.job_id} completed successfully and results stored/notified.")
-    
-    # Return analysis results including flaw stills for web app integration
-    return {
-        'analysis_report': analysis_report,
-        'output_video_path': output_video_path,
-        'feedback_stills': frame_for_still_capture,
-        'flaw_stills': flaw_stills_captured,
-        'detailed_flaws': detailed_flaws,
-        'shot_phases': shot_phases,
-        'feedback_points': feedback_points,
-        'improvement_plan_pdf': improvement_plan_pdf
+        # Clean up local temporary files
+        if os.path.exists(local_video_path):
+            os.remove(local_video_path)
+        
+        logging.info(f"Analysis for job {job.job_id} completed successfully and results stored/notified.")
+        
+        # Return analysis results
+        return {
+            'analysis_report': analysis_report,
+            'output_video_path': output_video_path,
+            'feedback_stills': frame_for_still_capture,
+            'flaw_stills': flaw_stills_captured,
+            'detailed_flaws': detailed_flaws,
+            'shot_phases': shot_phases,
+            'feedback_points': feedback_points,
+            'improvement_plan_pdf': improvement_plan_pdf
         }
-    
+        
     except Exception as e:
         logging.error(f"Critical error in video analysis for job {job.job_id}: {e}")
+        # Clean up any files that might have been created
+        try:
+            if 'local_video_path' in locals() and os.path.exists(local_video_path):
+                os.remove(local_video_path)
+        except:
+            pass
         # Return safe fallback results structure
         return {
             'analysis_report': None,
