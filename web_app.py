@@ -402,6 +402,11 @@ def process_video_async(job_id, video_path, ideal_data):
             }
         
         # Save results to file
+        print(f"DEBUG: Saving results for job {job_id}")
+        print(f"DEBUG: Results keys: {list(job_results[job_id].keys())}")
+        print(f"DEBUG: Analysis complete: {job_results[job_id].get('analysis_complete', False)}")
+        print(f"DEBUG: Video path exists: {job_results[job_id].get('video_path') and os.path.exists(job_results[job_id]['video_path'])}")
+        
         save_results_to_file(job_id, job_results[job_id])
         
         # Update job status
@@ -716,14 +721,43 @@ def download_result(job_id):
         if results_data:
             job_results[job_id] = results_data
         else:
-            flash('Results not available')
+            # Enhanced debugging for missing results in download
+            print(f"DEBUG DOWNLOAD: Results not found for job {job_id}")
+            print(f"DEBUG DOWNLOAD: Analysis jobs keys: {list(analysis_jobs.keys())}")
+            print(f"DEBUG DOWNLOAD: Job results keys: {list(job_results.keys())}")
+            
+            # Check if job exists
+            if job_id in analysis_jobs:
+                print(f"DEBUG DOWNLOAD: Job status: {analysis_jobs[job_id]['status']}")
+            else:
+                print(f"DEBUG DOWNLOAD: Job {job_id} not found in analysis_jobs")
+            
+            # Check if results file exists
+            results_file = os.path.join('jobs', f'{job_id}_results.json')
+            print(f"DEBUG DOWNLOAD: Results file {results_file} exists: {os.path.exists(results_file)}")
+            
+            if os.path.exists(results_file):
+                try:
+                    with open(results_file, 'r') as f:
+                        content = f.read()
+                        print(f"DEBUG DOWNLOAD: Results file content length: {len(content)}")
+                        print(f"DEBUG DOWNLOAD: Results file first 200 chars: {content[:200]}")
+                except Exception as e:
+                    print(f"DEBUG DOWNLOAD: Error reading results file: {e}")
+            
+            flash('Results not available - analysis may have failed or results were not saved properly. Please try uploading the video again.')
             return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
+    print(f"DEBUG DOWNLOAD: Video path for job {job_id}: {video_path}")
+    print(f"DEBUG DOWNLOAD: Video path exists: {video_path and os.path.exists(video_path)}")
+    
     if not video_path or not os.path.exists(video_path):
+        print(f"DEBUG DOWNLOAD: Video file not found - {video_path}")
         flash('Result video not found - analysis may have failed to generate an output video')
         return redirect(url_for('index'))
     
+    print(f"DEBUG DOWNLOAD: Sending video file: {video_path}")
     return send_file(
         video_path,
         as_attachment=True,
@@ -740,11 +774,17 @@ def serve_video(job_id):
         if results_data:
             job_results[job_id] = results_data
         else:
+            print(f"DEBUG VIDEO: Results not found for job {job_id}")
+            print(f"DEBUG VIDEO: Job results keys: {list(job_results.keys())}")
             flash('Results not available')
             return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
+    print(f"DEBUG VIDEO: Video path for job {job_id}: {video_path}")
+    print(f"DEBUG VIDEO: Video path exists: {video_path and os.path.exists(video_path)}")
+    
     if not video_path or not os.path.exists(video_path):
+        print(f"DEBUG VIDEO: Video file not found - {video_path}")
         flash('Result video not found - analysis may have failed to generate an output video')
         return redirect(url_for('index'))
     
