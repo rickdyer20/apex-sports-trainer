@@ -928,6 +928,19 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.warning(f"PDF generation failed: {e}")
 
+    # Move final video to results folder with correct naming
+    try:
+        os.makedirs('results', exist_ok=True)
+        final_video_path = os.path.join('results', f"{job.job_id}_analyzed.mp4")
+        if os.path.exists(output_video_path):
+            shutil.move(output_video_path, final_video_path)
+            output_video_path = final_video_path
+            logging.info(f"Moved final video to: {final_video_path}")
+        else:
+            logging.warning(f"Output video not found at: {output_video_path}")
+    except Exception as e:
+        logging.error(f"Failed to move video to results folder: {e}")
+
     logging.info(f"Analysis completed successfully for job {job.job_id}")
     
     # Return comprehensive results
