@@ -26,24 +26,122 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 # Create directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
+os.makedirs('jobs', exist_ok=True)  # Directory for job persistence
 
 # In-memory storage for demo (in production, use a database)
 analysis_jobs = {}
 job_results = {}
 
+# Job persistence functions
+def save_job_to_file(job_id, job_data):
+    """Save job data to file for persistence across sessions"""
+    try:
+        job_file = os.path.join('jobs', f"{job_id}.json")
+        serializable_data = job_data.copy()
+        # Convert datetime objects to ISO strings
+        if 'created_at' in serializable_data:
+            serializable_data['created_at'] = serializable_data['created_at'].isoformat()
+        if 'updated_at' in serializable_data:
+            serializable_data['updated_at'] = serializable_data['updated_at'].isoformat()
+        if 'processed_at' in serializable_data:
+            serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
+        
+        with open(job_file, 'w') as f:
+            json.dump(serializable_data, f, indent=2)
+        print(f"DEBUG: Saved job {job_id} to file")
+    except Exception as e:
+        print(f"DEBUG: Failed to save job {job_id}: {e}")
+
+def load_job_from_file(job_id):
+    """Load job data from file"""
+    try:
+        job_file = os.path.join('jobs', f"{job_id}.json")
+        if os.path.exists(job_file):
+            with open(job_file, 'r') as f:
+                job_data = json.load(f)
+            
+            # Convert ISO strings back to datetime objects
+            if 'created_at' in job_data:
+                job_data['created_at'] = datetime.fromisoformat(job_data['created_at'])
+            if 'updated_at' in job_data:
+                job_data['updated_at'] = datetime.fromisoformat(job_data['updated_at'])
+            if 'processed_at' in job_data:
+                job_data['processed_at'] = datetime.fromisoformat(job_data['processed_at'])
+            
+            print(f"DEBUG: Loaded job {job_id} from file")
+            return job_data
+    except Exception as e:
+        print(f"DEBUG: Failed to load job {job_id}: {e}")
+    return None
+
+def save_results_to_file(job_id, results_data):
+    """Save results data to file for persistence"""
+    try:
+        results_file = os.path.join('jobs', f"{job_id}_results.json")
+        serializable_data = results_data.copy()
+        # Convert datetime objects to ISO strings
+        if 'processed_at' in serializable_data:
+            serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
+        
+        with open(results_file, 'w') as f:
+            json.dump(serializable_data, f, indent=2)
+        print(f"DEBUG: Saved results {job_id} to file")
+    except Exception as e:
+        print(f"DEBUG: Failed to save results {job_id}: {e}")
+
+def load_results_from_file(job_id):
+    """Load results data from file"""
+    try:
+        results_file = os.path.join('jobs', f"{job_id}_results.json")
+        if os.path.exists(results_file):
+            with open(results_file, 'r') as f:
+                results_data = json.load(f)
+            
+            # Convert ISO strings back to datetime objects
+            if 'processed_at' in results_data:
+                results_data['processed_at'] = datetime.fromisoformat(results_data['processed_at'])
+            
+            print(f"DEBUG: Loaded results {job_id} from file")
+            return results_data
+    except Exception as e:
+        print(f"DEBUG: Failed to load results {job_id}: {e}")
+    return None
+
+def load_all_jobs():
+    """Load all jobs from files on startup"""
+    try:
+        job_files = [f for f in os.listdir('jobs') if f.endswith('.json') and not f.endswith('_results.json')]
+        for job_file in job_files:
+            job_id = job_file.replace('.json', '')
+            job_data = load_job_from_file(job_id)
+            if job_data:
+                analysis_jobs[job_id] = job_data
+                
+                # Also load results if available
+                results_data = load_results_from_file(job_id)
+                if results_data:
+                    job_results[job_id] = results_data
+        
+        print(f"DEBUG: Loaded {len(analysis_jobs)} jobs from files")
+    except Exception as e:
+        print(f"DEBUG: Failed to load jobs from files: {e}")
+
+# Load existing jobs on startup
+load_all_jobs()
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def ensure_web_compatible_video(video_path):
-    """Ensure video is web-compatible, convert if needed"""
+    """Ensure video is web-compatible, convert if needed, and fix orientation"""
     if not os.path.exists(video_path):
         return video_path
     
-    # Check if video needs conversion
+    # Check if video needs conversion or orientation fix
     try:
         import subprocess
         
-        # Get video codec info
+        # Get video codec info and rotation metadata
         probe_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
         result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
         
@@ -51,52 +149,100 @@ def ensure_web_compatible_video(video_path):
             import json
             probe_data = json.loads(result.stdout)
             
-            # Check if video stream uses web-compatible codec
+            needs_conversion = False
+            rotation = 0
+            
+            # Check if video stream uses web-compatible codec and check rotation
             for stream in probe_data.get('streams', []):
                 if stream.get('codec_type') == 'video':
                     codec = stream.get('codec_name', '')
                     
-                    # If not H.264, convert it
+                    # If not H.264, needs conversion
                     if codec != 'h264':
-                        web_path = video_path.replace('.mp4', '_web.mp4')
-                        
-                        # Convert to web-compatible format
-                        convert_cmd = [
-                            'ffmpeg', '-y',
-                            '-i', video_path,
-                            '-c:v', 'libx264',
-                            '-profile:v', 'baseline',
-                            '-level', '3.0',
-                            '-pix_fmt', 'yuv420p',
-                            '-movflags', '+faststart',
-                            '-preset', 'fast',
-                            '-crf', '23',
-                            web_path
-                        ]
-                        
-                        convert_result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=120)
-                        
-                        if convert_result.returncode == 0 and os.path.exists(web_path):
-                            # Replace original with converted version
-                            os.remove(video_path)
-                            os.rename(web_path, video_path)
-                            print(f"Converted video to web format: {video_path}")
-                            return video_path
-                        else:
-                            print(f"Video conversion failed: {convert_result.stderr}")
+                        needs_conversion = True
+                    
+                    # Check for rotation metadata
+                    side_data = stream.get('side_data_list', [])
+                    for data in side_data:
+                        if data.get('side_data_type') == 'Display Matrix':
+                            rotation_str = data.get('rotation', '0')
+                            try:
+                                rotation = int(float(rotation_str))
+                            except (ValueError, TypeError):
+                                rotation = 0
+                    
+                    # Also check tags for rotation
+                    tags = stream.get('tags', {})
+                    if 'rotate' in tags:
+                        try:
+                            rotation = int(tags['rotate'])
+                        except (ValueError, TypeError):
+                            rotation = 0
                     break
+            
+            # Convert to web-compatible format and fix orientation if needed
+            if needs_conversion or (rotation != 0 and rotation % 90 == 0):
+                web_path = video_path.replace('.mp4', '_web.mp4')
+                
+                # Build FFmpeg command
+                convert_cmd = [
+                    'ffmpeg', '-y',
+                    '-i', video_path,
+                    '-c:v', 'libx264',
+                    '-profile:v', 'baseline',
+                    '-level', '3.0',
+                    '-pix_fmt', 'yuv420p',
+                    '-movflags', '+faststart',
+                    '-preset', 'fast',
+                    '-crf', '23'
+                ]
+                
+                # Add rotation fix if needed
+                if rotation != 0 and rotation % 90 == 0:
+                    if rotation == 90:
+                        convert_cmd.extend(['-vf', 'transpose=1'])  # 90° clockwise
+                    elif rotation == 180:
+                        convert_cmd.extend(['-vf', 'transpose=2,transpose=2'])  # 180°
+                    elif rotation == 270:
+                        convert_cmd.extend(['-vf', 'transpose=2'])  # 90° counter-clockwise
+                    
+                    # Remove rotation metadata
+                    convert_cmd.extend(['-metadata:s:v:0', 'rotate=0'])
+                
+                convert_cmd.append(web_path)
+                
+                convert_result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=120)
+                
+                if convert_result.returncode == 0 and os.path.exists(web_path):
+                    # Replace original with converted version
+                    os.remove(video_path)
+                    os.rename(web_path, video_path)
+                    print(f"Converted video to web format and fixed orientation: {video_path}")
+                    return video_path
+                else:
+                    print(f"Video conversion failed: {convert_result.stderr}")
                     
     except Exception as e:
-        print(f"Video compatibility check failed: {e}")
+        print(f"Video compatibility check/fix failed: {e}")
     
     return video_path
 
 def process_video_async(job_id, video_path, ideal_data):
     """Process video analysis in background thread"""
+    import signal
+    import threading
+    
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Analysis timeout - processing took too long")
+    
     try:
+        # Set timeout for analysis (10 minutes for deployment)
+        timeout_seconds = 600  # 10 minutes
+        
         # Update job status
         analysis_jobs[job_id]['status'] = 'PROCESSING'
         analysis_jobs[job_id]['updated_at'] = datetime.now()
+        save_job_to_file(job_id, analysis_jobs[job_id])
         
         # Create job object
         job = VideoAnalysisJob(
@@ -105,9 +251,41 @@ def process_video_async(job_id, video_path, ideal_data):
             video_url=video_path
         )
         
-        # Process the video
-        print(f"DEBUG: Starting analysis for job {job_id}")
-        analysis_results = process_video_for_analysis(job, ideal_data)
+        # Process the video with timeout protection
+        print(f"DEBUG: Starting analysis for job {job_id} with {timeout_seconds}s timeout")
+        
+        # Use threading timer as fallback timeout mechanism for deployment
+        def analysis_with_timeout():
+            try:
+                return process_video_for_analysis(job, ideal_data)
+            except Exception as e:
+                print(f"DEBUG: Analysis exception: {e}")
+                return {'error': str(e)}
+        
+        # Run analysis in separate thread with monitoring
+        analysis_result = [None]
+        analysis_exception = [None]
+        
+        def run_analysis():
+            try:
+                analysis_result[0] = process_video_for_analysis(job, ideal_data)
+            except Exception as e:
+                analysis_exception[0] = e
+        
+        analysis_thread = threading.Thread(target=run_analysis)
+        analysis_thread.daemon = True
+        analysis_thread.start()
+        analysis_thread.join(timeout=timeout_seconds)
+        
+        if analysis_thread.is_alive():
+            print(f"DEBUG: Analysis timeout for job {job_id}")
+            analysis_results = {'error': 'Analysis timeout - video processing took too long. Please try with a shorter video.'}
+        elif analysis_exception[0]:
+            print(f"DEBUG: Analysis exception for job {job_id}: {analysis_exception[0]}")
+            analysis_results = {'error': str(analysis_exception[0])}
+        else:
+            analysis_results = analysis_result[0]
+        
         print(f"DEBUG: Analysis completed for job {job_id}. Results: {type(analysis_results)}")
         
         if analysis_results:
@@ -131,9 +309,11 @@ def process_video_async(job_id, video_path, ideal_data):
                 'improvement_plan_pdf': None,
                 'error': analysis_results['error']
             }
+            save_results_to_file(job_id, job_results[job_id])
             analysis_jobs[job_id]['status'] = 'FAILED'
             analysis_jobs[job_id]['error'] = analysis_results['error']
             analysis_jobs[job_id]['updated_at'] = datetime.now()
+            save_job_to_file(job_id, analysis_jobs[job_id])
             return
         
         # Store results
@@ -221,15 +401,20 @@ def process_video_async(job_id, video_path, ideal_data):
                 'warning': 'Analysis completed but pose detection failed in most frames. Please try with better lighting or a clearer view of the player.'
             }
         
+        # Save results to file
+        save_results_to_file(job_id, job_results[job_id])
+        
         # Update job status
         analysis_jobs[job_id]['status'] = 'COMPLETED'
         analysis_jobs[job_id]['updated_at'] = datetime.now()
+        save_job_to_file(job_id, analysis_jobs[job_id])
         
     except Exception as e:
         print(f"Error processing job {job_id}: {e}")
         analysis_jobs[job_id]['status'] = 'FAILED'
         analysis_jobs[job_id]['error'] = str(e)
         analysis_jobs[job_id]['updated_at'] = datetime.now()
+        save_job_to_file(job_id, analysis_jobs[job_id])
 
 @app.route('/')
 def index():
@@ -289,6 +474,9 @@ def upload_video():
         'updated_at': datetime.now()
     }
     
+    # Save job to file for persistence
+    save_job_to_file(job_id, analysis_jobs[job_id])
+    
     # Load ideal shot data
     ideal_data = load_ideal_shot_data('ideal_shot_guide.json')
     
@@ -307,8 +495,17 @@ def upload_video():
 def analysis_status(job_id):
     """Show analysis status page"""
     if job_id not in analysis_jobs:
-        flash('Job not found')
-        return redirect(url_for('index'))
+        # Try to load from file
+        job_data = load_job_from_file(job_id)
+        if job_data:
+            analysis_jobs[job_id] = job_data
+            # Also try to load results
+            results_data = load_results_from_file(job_id)
+            if results_data:
+                job_results[job_id] = results_data
+        else:
+            flash('Job not found')
+            return redirect(url_for('index'))
     
     job = analysis_jobs[job_id]
     return render_template('status.html', job=job, job_id=job_id)
@@ -317,7 +514,16 @@ def analysis_status(job_id):
 def api_status(job_id):
     """API endpoint for checking job status"""
     if job_id not in analysis_jobs:
-        return jsonify({'error': 'Job not found'}), 404
+        # Try to load from file
+        job_data = load_job_from_file(job_id)
+        if job_data:
+            analysis_jobs[job_id] = job_data
+            # Also try to load results
+            results_data = load_results_from_file(job_id)
+            if results_data:
+                job_results[job_id] = results_data
+        else:
+            return jsonify({'error': 'Job not found'}), 404
     
     job = analysis_jobs[job_id]
     response = {
@@ -437,8 +643,17 @@ def demo_results():
 def view_results(job_id):
     """View analysis results"""
     if job_id not in analysis_jobs:
-        flash('Job not found')
-        return redirect(url_for('index'))
+        # Try to load from file
+        job_data = load_job_from_file(job_id)
+        if job_data:
+            analysis_jobs[job_id] = job_data
+            # Also try to load results
+            results_data = load_results_from_file(job_id)
+            if results_data:
+                job_results[job_id] = results_data
+        else:
+            flash('Job not found')
+            return redirect(url_for('index'))
     
     job_status = analysis_jobs[job_id]['status']
     
@@ -456,8 +671,13 @@ def view_results(job_id):
         return redirect(url_for('index'))
     
     if job_id not in job_results:
-        flash('Results not available')
-        return redirect(url_for('index'))
+        # Try to load results from file
+        results_data = load_results_from_file(job_id)
+        if results_data:
+            job_results[job_id] = results_data
+        else:
+            flash('Results not available')
+            return redirect(url_for('index'))
     
     job = analysis_jobs[job_id]
     results = job_results[job_id]
@@ -472,8 +692,13 @@ def view_results(job_id):
 def download_result(job_id):
     """Download analyzed video"""
     if job_id not in job_results:
-        flash('Results not available')
-        return redirect(url_for('index'))
+        # Try to load results from file
+        results_data = load_results_from_file(job_id)
+        if results_data:
+            job_results[job_id] = results_data
+        else:
+            flash('Results not available')
+            return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
     if not video_path or not os.path.exists(video_path):
@@ -491,8 +716,13 @@ def download_result(job_id):
 def serve_video(job_id):
     """Serve analyzed video for web playback with proper headers"""
     if job_id not in job_results:
-        flash('Results not available')
-        return redirect(url_for('index'))
+        # Try to load results from file
+        results_data = load_results_from_file(job_id)
+        if results_data:
+            job_results[job_id] = results_data
+        else:
+            flash('Results not available')
+            return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
     if not video_path or not os.path.exists(video_path):
@@ -741,10 +971,13 @@ def health_check():
     try:
         redis_url = os.getenv('REDIS_URL')
         if redis_url:
-            import redis
-            client = redis.Redis.from_url(redis_url)
-            client.ping()
-            health_status['checks']['redis'] = 'healthy'
+            try:
+                import redis
+                client = redis.Redis.from_url(redis_url)
+                client.ping()
+                health_status['checks']['redis'] = 'healthy'
+            except ImportError:
+                health_status['checks']['redis'] = 'redis_not_installed'
         else:
             health_status['checks']['redis'] = 'not_configured'
     except Exception as e:
