@@ -425,28 +425,27 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     Main function to process a single video analysis job.
     This function would be triggered by a message from the processing queue.
     """
-    try:
-        logging.info(f"Starting analysis for job: {job.job_id} from {job.video_url}")
+    logging.info(f"Starting analysis for job: {job.job_id} from {job.video_url}")
 
-        local_video_path = f"temp_{job.job_id}_raw.mp4" # Use local temp for Windows compatibility
-        download_video_from_storage(job.video_url, local_video_path) # Assumes successful download
+    local_video_path = f"temp_{job.job_id}_raw.mp4" # Use local temp for Windows compatibility
+    download_video_from_storage(job.video_url, local_video_path) # Assumes successful download
 
-        cap = cv2.VideoCapture(local_video_path)
-        if not cap.isOpened():
-            logging.error(f"Failed to open video file: {local_video_path}")
-            job.status = "FAILED"
-            # Update job status in DB
-            return {
-                'analysis_report': None,
-                'output_video_path': None,
-                'feedback_stills': {},
-                'flaw_stills': [],
-                'detailed_flaws': [],
-                'shot_phases': [],
-                'feedback_points': [],
-                'improvement_plan_pdf': None,
-                'error': 'Failed to open video file'
-            }
+    cap = cv2.VideoCapture(local_video_path)
+    if not cap.isOpened():
+        logging.error(f"Failed to open video file: {local_video_path}")
+        job.status = "FAILED"
+        # Update job status in DB
+        return {
+            'analysis_report': None,
+            'output_video_path': None,
+            'feedback_stills': {},
+            'flaw_stills': [],
+            'detailed_flaws': [],
+            'shot_phases': [],
+            'feedback_points': [],
+            'improvement_plan_pdf': None,
+            'error': 'Failed to open video file'
+        }
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -831,27 +830,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             'shot_phases': shot_phases,
             'feedback_points': feedback_points,
             'improvement_plan_pdf': improvement_plan_pdf
-        }
-        
-    except Exception as e:
-        logging.error(f"Critical error in video analysis for job {job.job_id}: {e}")
-        # Clean up any files that might have been created
-        try:
-            if 'local_video_path' in locals() and os.path.exists(local_video_path):
-                os.remove(local_video_path)
-        except:
-            pass
-        # Return safe fallback results structure
-        return {
-            'analysis_report': None,
-            'output_video_path': None,
-            'feedback_stills': {},
-            'flaw_stills': [],
-            'detailed_flaws': [],
-            'shot_phases': [],
-            'feedback_points': [],
-            'improvement_plan_pdf': None,
-            'error': str(e)
         }
 
 # --- Entry Point (Conceptual for a serverless function or containerized service) ---
