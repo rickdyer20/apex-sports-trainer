@@ -676,7 +676,26 @@ def view_results(job_id):
         if results_data:
             job_results[job_id] = results_data
         else:
-            flash('Results not available')
+            # Enhanced debugging for missing results
+            print(f"DEBUG: Results not found for job {job_id}")
+            print(f"DEBUG: Analysis jobs keys: {list(analysis_jobs.keys())}")
+            print(f"DEBUG: Job results keys: {list(job_results.keys())}")
+            print(f"DEBUG: Job status: {analysis_jobs[job_id]['status']}")
+            
+            # Check if results file exists
+            results_file = os.path.join('jobs', f'{job_id}_results.json')
+            print(f"DEBUG: Results file {results_file} exists: {os.path.exists(results_file)}")
+            
+            if os.path.exists(results_file):
+                try:
+                    with open(results_file, 'r') as f:
+                        content = f.read()
+                        print(f"DEBUG: Results file content length: {len(content)}")
+                        print(f"DEBUG: Results file first 200 chars: {content[:200]}")
+                except Exception as e:
+                    print(f"DEBUG: Error reading results file: {e}")
+            
+            flash('Results not available - analysis may have failed or results were not saved properly. Please try uploading the video again.')
             return redirect(url_for('index'))
     
     job = analysis_jobs[job_id]
