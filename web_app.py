@@ -115,6 +115,27 @@ def process_video_async(job_id, video_path, ideal_data):
         else:
             print(f"DEBUG: Analysis results is None or empty")
         
+        # Check if analysis encountered errors
+        if analysis_results and 'error' in analysis_results:
+            print(f"DEBUG: Analysis had errors: {analysis_results['error']}")
+            # Store error results
+            job_results[job_id] = {
+                'video_path': None,
+                'analysis_complete': False,
+                'processed_at': datetime.now(),
+                'flaw_stills': [],
+                'feedback_stills': [],
+                'detailed_flaws': [],
+                'shot_phases': [],
+                'feedback_points': [],
+                'improvement_plan_pdf': None,
+                'error': analysis_results['error']
+            }
+            analysis_jobs[job_id]['status'] = 'FAILED'
+            analysis_jobs[job_id]['error'] = analysis_results['error']
+            analysis_jobs[job_id]['updated_at'] = datetime.now()
+            return
+        
         # Store results
         output_video = f"temp_{job_id}_analyzed.mp4"
         print(f"DEBUG: Looking for output video: {output_video}, exists: {os.path.exists(output_video)}")
@@ -182,6 +203,22 @@ def process_video_async(job_id, video_path, ideal_data):
                 'shot_phases': analysis_results.get('shot_phases', []) if analysis_results else [],
                 'feedback_points': analysis_results.get('feedback_points', []) if analysis_results else [],
                 'improvement_plan_pdf': improvement_plan_pdf
+            }
+        else:
+            # No output video was generated, but analysis completed 
+            # This can happen when MediaPipe fails to detect poses in most frames
+            print(f"DEBUG: No output video generated for job {job_id}, storing results without video")
+            job_results[job_id] = {
+                'video_path': None,
+                'analysis_complete': True,
+                'processed_at': datetime.now(),
+                'flaw_stills': [],
+                'feedback_stills': [],
+                'detailed_flaws': analysis_results.get('detailed_flaws', []) if analysis_results else [],
+                'shot_phases': analysis_results.get('shot_phases', []) if analysis_results else [],
+                'feedback_points': analysis_results.get('feedback_points', []) if analysis_results else [],
+                'improvement_plan_pdf': None,
+                'warning': 'Analysis completed but pose detection failed in most frames. Please try with better lighting or a clearer view of the player.'
             }
         
         # Update job status
@@ -399,7 +436,22 @@ def demo_results():
 @app.route('/results/<job_id>')
 def view_results(job_id):
     """View analysis results"""
-    if job_id not in analysis_jobs or analysis_jobs[job_id]['status'] != 'COMPLETED':
+    if job_id not in analysis_jobs:
+        flash('Job not found')
+        return redirect(url_for('index'))
+    
+    job_status = analysis_jobs[job_id]['status']
+    
+    if job_status == 'PROCESSING':
+        flash('Analysis is still in progress. Please wait...')
+        return redirect(url_for('index'))
+    elif job_status == 'FAILED':
+        if job_id in job_results and 'error' in job_results[job_id]:
+            flash(f'Analysis failed: {job_results[job_id]["error"]}')
+        else:
+            flash('Analysis failed due to an error')
+        return redirect(url_for('index'))
+    elif job_status != 'COMPLETED':
         flash('Analysis not completed or job not found')
         return redirect(url_for('index'))
     
@@ -409,6 +461,10 @@ def view_results(job_id):
     
     job = analysis_jobs[job_id]
     results = job_results[job_id]
+    
+    # Show warning if analysis completed but with issues
+    if 'warning' in results:
+        flash(results['warning'], 'warning')
     
     return render_template('results.html', job=job, results=results, job_id=job_id)
 
@@ -420,8 +476,8 @@ def download_result(job_id):
         return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
-    if not os.path.exists(video_path):
-        flash('Result video not found')
+    if not video_path or not os.path.exists(video_path):
+        flash('Result video not found - analysis may have failed to generate an output video')
         return redirect(url_for('index'))
     
     return send_file(
@@ -439,8 +495,8 @@ def serve_video(job_id):
         return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
-    if not os.path.exists(video_path):
-        flash('Result video not found')
+    if not video_path or not os.path.exists(video_path):
+        flash('Result video not found - analysis may have failed to generate an output video')
         return redirect(url_for('index'))
     
     # Ensure video is web-compatible
