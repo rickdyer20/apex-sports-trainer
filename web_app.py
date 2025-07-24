@@ -316,14 +316,14 @@ def process_video_async(job_id, video_path, ideal_data):
             save_job_to_file(job_id, analysis_jobs[job_id])
             return
         
-        # Store results
-        output_video = f"temp_{job_id}_analyzed.mp4"
-        print(f"DEBUG: Looking for output video: {output_video}, exists: {os.path.exists(output_video)}")
+        # Store results - get video path from analysis results
+        result_video_path = None
+        if analysis_results and 'output_video_path' in analysis_results:
+            result_video_path = analysis_results['output_video_path']
+            print(f"DEBUG: Analysis returned video path: {result_video_path}")
+            print(f"DEBUG: Video path exists: {result_video_path and os.path.exists(result_video_path)}")
         
-        if os.path.exists(output_video):
-            # Move to results folder
-            result_video_path = os.path.join(RESULTS_FOLDER, f"{job_id}_analyzed.mp4")
-            os.rename(output_video, result_video_path)
+        if result_video_path and os.path.exists(result_video_path):
             
             # Move flaw stills to results folder
             flaw_stills_results = []
