@@ -7,8 +7,17 @@ import mediapipe as mp
 import numpy as np
 import json
 import logging # For robust logging
+import time
+import subprocess
+import shutil
 from datetime import datetime
 from pdf_generator import generate_improvement_plan_pdf
+
+# Try to import psutil for resource monitoring
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 # --- Service Initialization (on service startup) ---
 mp_pose = mp.solutions.pose
@@ -420,362 +429,510 @@ def wrap_text(text, max_chars):
 
 # --- Core Processing Logic (within the Pose Estimation & Analysis Service) ---
 
+def fix_video_orientation(video_path):
+    """Fix video orientation based on metadata rotation info"""
+    try:
+        import subprocess
+        
+        # Get video rotation metadata
+        probe_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
+        result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            import json
+            probe_data = json.loads(result.stdout)
+            
+            # Check for rotation metadata
+            rotation = 0
+            for stream in probe_data.get('streams', []):
+                if stream.get('codec_type') == 'video':
+                    # Check for rotation in side_data
+                    side_data = stream.get('side_data_list', [])
+                    for data in side_data:
+                        if data.get('side_data_type') == 'Display Matrix':
+                            rotation_str = data.get('rotation', '0')
+                            try:
+                                rotation = int(float(rotation_str))
+                            except (ValueError, TypeError):
+                                rotation = 0
+                    
+                    # Also check tags for rotation
+                    tags = stream.get('tags', {})
+                    if 'rotate' in tags:
+                        try:
+                            rotation = int(tags['rotate'])
+                        except (ValueError, TypeError):
+                            rotation = 0
+                    break
+            
+            # If rotation detected, fix it
+            if rotation != 0 and rotation % 90 == 0:
+                corrected_path = video_path.replace('.mp4', '_corrected.mp4')
+                
+                # Determine transpose filter based on rotation
+                if rotation == 90:
+                    transpose_filter = 'transpose=1'  # 90° clockwise
+                elif rotation == 180:
+                    transpose_filter = 'transpose=2,transpose=2'  # 180°
+                elif rotation == 270:
+                    transpose_filter = 'transpose=2'  # 90° counter-clockwise
+                else:
+                    transpose_filter = None
+                
+                if transpose_filter:
+                    fix_cmd = [
+                        'ffmpeg', '-y',
+                        '-i', video_path,
+                        '-vf', transpose_filter,
+                        '-c:a', 'copy',  # Copy audio without re-encoding
+                        '-metadata:s:v:0', 'rotate=0',  # Remove rotation metadata
+                        corrected_path
+                    ]
+                    
+                    fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
+                    
+                    if fix_result.returncode == 0 and os.path.exists(corrected_path):
+                        # Replace original with corrected version
+                        os.remove(video_path)
+                        os.rename(corrected_path, video_path)
+                        logging.info(f"Fixed video orientation (rotated {rotation}°): {video_path}")
+                        return True
+                    else:
+                        logging.warning(f"Failed to fix video orientation: {fix_result.stderr}")
+                        
+    except Exception as e:
+        logging.warning(f"Could not check/fix video orientation: {e}")
+    
+    return False
+
 def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     """
     Main function to process a single video analysis job.
-    This function would be triggered by a message from the processing queue.
+    Optimized for cloud deployment with error handling and resource management.
     """
     logging.info(f"Starting analysis for job: {job.job_id} from {job.video_url}")
+    
+    # Add memory and resource monitoring
+    try:
+        if psutil:
+            memory_info = psutil.virtual_memory()
+            logging.info(f"Available memory: {memory_info.available / (1024**3):.2f} GB")
+            disk_info = psutil.disk_usage('.')
+            logging.info(f"Disk space: {disk_info.free / (1024**3):.2f} GB free")
+        else:
+            logging.info("psutil not available, skipping resource monitoring")
+    except Exception as e:
+        logging.warning(f"Resource monitoring failed: {e}")
 
-    local_video_path = f"temp_{job.job_id}_raw.mp4" # Use local temp for Windows compatibility
-    download_video_from_storage(job.video_url, local_video_path) # Assumes successful download
-
-    cap = cv2.VideoCapture(local_video_path)
-    if not cap.isOpened():
-        logging.error(f"Failed to open video file: {local_video_path}")
-        job.status = "FAILED"
-        # Update job status in DB
+    local_video_path = f"temp_{job.job_id}_raw.mp4"
+    
+    try:
+        download_video_from_storage(job.video_url, local_video_path)
+        if os.path.exists(local_video_path):
+            file_size = os.path.getsize(local_video_path) / (1024**2)
+            logging.info(f"Downloaded video: {local_video_path}, size: {file_size:.2f} MB")
+        else:
+            logging.error(f"Video file not found after download: {local_video_path}")
+            return {
+                'error': 'Failed to download or locate video file'
+            }
+    except Exception as e:
+        logging.error(f"Failed to download video: {e}")
         return {
-            'analysis_report': None,
-            'output_video_path': None,
-            'feedback_stills': {},
-            'flaw_stills': [],
-            'detailed_flaws': [],
-            'shot_phases': [],
-            'feedback_points': [],
-            'improvement_plan_pdf': None,
-            'error': 'Failed to open video file'
+            'error': f'Failed to download video: {str(e)}'
+        }
+    
+    # Fix video orientation if needed
+    try:
+        fix_video_orientation(local_video_path)
+        logging.info(f"Video orientation check completed")
+    except Exception as e:
+        logging.warning(f"Video orientation fix failed: {e}")
+
+    # Initialize video capture with error handling
+    cap = None
+    try:
+        cap = cv2.VideoCapture(local_video_path)
+        if not cap.isOpened():
+            logging.error(f"Failed to open video file: {local_video_path}")
+            return {
+                'error': 'Failed to open video file - file may be corrupted or in unsupported format'
+            }
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        logging.info(f"Video properties - FPS: {fps}, Size: {width}x{height}, Frames: {total_frames}")
+        
+        # Validate video properties
+        if fps <= 0 or width <= 0 or height <= 0 or total_frames <= 0:
+            logging.error(f"Invalid video properties: FPS={fps}, Size={width}x{height}, Frames={total_frames}")
+            cap.release()
+            return {
+                'error': 'Invalid video format or corrupted video file'
+            }
+        
+        # Limit processing for deployment efficiency
+        max_frames = min(total_frames, 300)  # Process max 300 frames (10-15 seconds at 30fps)
+        if total_frames > max_frames:
+            logging.info(f"Limiting processing to {max_frames} frames (original: {total_frames}) for deployment efficiency")
+
+    except Exception as e:
+        logging.error(f"Error initializing video processing: {e}")
+        if cap:
+            cap.release()
+        return {
+            'error': f'Error initializing video processing: {str(e)}'
         }
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    processed_frames_data = [] # List of FrameData objects
+    processed_frames_data = []
     current_frame_idx = 0
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        try:
-            # Convert the BGR image to RGB.
-            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image.flags.writeable = False
-            results = pose_model.process(image)
-            image.flags.writeable = True
-
-            frame_metrics = {}
-            if results and results.pose_landmarks:
-                landmarks = results.pose_landmarks.landmark
-
-                # Calculate key angles and store them
-                # Right arm (assuming right-handed shot for now)
-                r_shoulder = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, width, height)
-                r_elbow = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW, width, height)
-                r_wrist = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)
-                r_hip = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_HIP, width, height)
-                r_knee = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_KNEE, width, height)
-                r_ankle = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ANKLE, width, height)
-
-                # Elbow angle
-                elbow_angle = calculate_angle(r_shoulder, r_elbow, r_wrist)
-                frame_metrics['elbow_angle'] = elbow_angle
-
-                # Knee angle
-                knee_angle = calculate_angle(r_hip, r_knee, r_ankle)
-                frame_metrics['knee_angle'] = knee_angle
-
-                # Wrist snap potential (simplified: angle between elbow, wrist, and a point representing ball direction)
-                # This would need more sophisticated logic for actual wrist snap
-                # For now, let's consider the general wrist angle:
-                wrist_angle = calculate_angle(r_elbow, r_wrist, [r_wrist[0], r_wrist[1] - 50]) # Point straight up from wrist
-                frame_metrics['wrist_angle_simplified'] = wrist_angle
-
-                # Calculate velocities (requires previous frame data)
-                if current_frame_idx > 0:
-                    prev_frame = processed_frames_data[-1]
-                    if prev_frame.landmarks_raw and prev_frame.landmarks_raw.pose_landmarks:
-                        prev_landmarks = prev_frame.landmarks_raw.pose_landmarks.landmark
-                        # Example: Vertical velocity of wrist
-                        prev_r_wrist_y = get_landmark_coords(prev_frame.landmarks_raw.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)[1]
-                        wrist_vertical_velocity = (prev_r_wrist_y - r_wrist[1]) * fps # Pixels per second
-                        frame_metrics['wrist_vertical_velocity'] = wrist_vertical_velocity
-                        # More velocities (knee, hip, etc.) would be calculated here
-                    else:
-                        frame_metrics['wrist_vertical_velocity'] = 0
-                else:
-                    frame_metrics['wrist_vertical_velocity'] = 0
-
-                # Store the data for this frame
-                processed_frames_data.append(FrameData(current_frame_idx, results, frame_metrics))
-
-            else:
-                # Handle frames where pose is not detected (e.g., player out of frame)
-                processed_frames_data.append(FrameData(current_frame_idx, None, {}))
-                
-        except Exception as e:
-            logging.error(f"Error processing frame {current_frame_idx}: {e}")
-            # Handle frames with processing errors
-            processed_frames_data.append(FrameData(current_frame_idx, None, {}))
-
-        current_frame_idx += 1
-        # In a real service, emit progress updates to the database or a separate status service
-
-    cap.release()
-    logging.info(f"Finished pose estimation for {total_frames} frames.")
-
-    # --- Phase Identification ---
-    # More sophisticated logic here would use thresholds on joint velocities and angles over time
-    # This is a conceptual example based on the analysis of `processed_frames_data`
-    shot_phases = []
-    # Dummy logic: find the frame with max knee bend for 'Load', max wrist velocity for 'Release'
-    max_knee_bend_frame = -1
-    min_knee_angle = float('inf')
-    max_wrist_vel_frame = -1
-    max_wrist_vel = -float('inf')
-
-    for i, frame_data in enumerate(processed_frames_data):
-        if 'knee_angle' in frame_data.metrics and frame_data.metrics['knee_angle'] < min_knee_angle:
-            min_knee_angle = frame_data.metrics['knee_angle']
-            max_knee_bend_frame = i
-        if 'wrist_vertical_velocity' in frame_data.metrics and frame_data.metrics['wrist_vertical_velocity'] > max_wrist_vel:
-            max_wrist_vel = frame_data.metrics['wrist_vertical_velocity']
-            max_wrist_vel_frame = i
-            
-    # Simple phase definitions based on identified key frames
-    if max_knee_bend_frame != -1:
-        shot_phases.append(ShotPhase('Load/Dip', max(0, max_knee_bend_frame - int(fps/2)), max_knee_bend_frame, max_knee_bend_frame))
-    if max_wrist_vel_frame != -1:
-         shot_phases.append(ShotPhase('Release', max_wrist_vel_frame, min(total_frames - 1, max_wrist_vel_frame + int(fps/2)), max_wrist_vel_frame))
-    # You'd add more sophisticated logic for ascent, follow-through, etc.
-
-    logging.info(f"Identified {len(shot_phases)} shot phases.")
-
-    # --- Analysis & Comparison with Ideal Form ---
-    feedback_points = []
-    # Iterate through critical phases/frames and compare metrics
-    for phase in shot_phases:
-        if phase.name == 'Release' and phase.key_moment_frame is not None:
-            release_frame_data = processed_frames_data[phase.key_moment_frame]
-            if 'elbow_angle' in release_frame_data.metrics:
-                user_elbow_angle = release_frame_data.metrics['elbow_angle']
-                ideal_range = ideal_shot_data['release_elbow_angle']
-                if not (ideal_range['min'] <= user_elbow_angle <= ideal_range['max']):
-                    feedback_points.append(FeedbackPoint(
-                        frame_number=phase.key_moment_frame,
-                        discrepancy=f"Elbow extension at release ({user_elbow_angle:.1f}°) is outside the ideal range ({ideal_range['min']}-{ideal_range['max']}°).",
-                        ideal_range=ideal_range,
-                        user_value=user_elbow_angle,
-                        remedy_tips=ideal_shot_data['common_remedies'].get('elbow_extension', 'Consult a coach for specific drills.'),
-                        critical_landmarks=[mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_ELBOW, mp_pose.PoseLandmark.RIGHT_WRIST]
-                    ))
-            # Add more checks for wrist snap, balance, etc. at release
-        if phase.name == 'Load/Dip' and phase.key_moment_frame is not None:
-            load_frame_data = processed_frames_data[phase.key_moment_frame]
-            if 'knee_angle' in load_frame_data.metrics:
-                user_knee_angle = load_frame_data.metrics['knee_angle']
-                ideal_range = ideal_shot_data['load_knee_angle']
-                if not (ideal_range['min'] <= user_knee_angle <= ideal_range['max']):
-                    feedback_points.append(FeedbackPoint(
-                        frame_number=phase.key_moment_frame,
-                        discrepancy=f"Knee bend during load ({user_knee_angle:.1f}°) is outside the ideal range ({ideal_range['min']}-{ideal_range['max']}°).",
-                        ideal_range=ideal_range,
-                        user_value=user_knee_angle,
-                        remedy_tips=ideal_shot_data['common_remedies'].get('knee_drive', 'Focus on getting a deeper or shallower knee bend.'),
-                        critical_landmarks=[mp_pose.PoseLandmark.RIGHT_HIP, mp_pose.PoseLandmark.RIGHT_KNEE, mp_pose.PoseLandmark.RIGHT_ANKLE]
-                    ))
-    logging.info(f"Generated {len(feedback_points)} feedback points.")
-
-    # --- Enhanced Flaw Detection and Analysis ---
-    detailed_flaws = analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, fps)
+    frames_processed = 0
+    frames_with_pose = 0
     
-    # --- Generate Visual Output (Slow-motion Video with Overlays & Stills) ---
-    output_video_path = f"temp_{job.job_id}_analyzed.mp4"
-    cap_reprocess = cv2.VideoCapture(local_video_path) # Re-open raw video for overlaying
-    
-    # Try different codecs for better compatibility
-    codecs_to_try = ['mp4v', 'XVID', 'MJPG', 'avc1']
-    out = None
-    
-    for codec in codecs_to_try:
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*codec)
-            out = cv2.VideoWriter(output_video_path, fourcc, fps / 4, (width, height))
-            
-            # Test if the writer was opened successfully
-            if out.isOpened():
-                logging.info(f"Successfully initialized video writer with codec: {codec}")
-                break
-            else:
-                out.release()
-                out = None
-        except Exception as e:
-            logging.warning(f"Failed to initialize video writer with codec {codec}: {e}")
-            if out:
-                out.release()
-                out = None
-    
-    if out is None:
-        logging.error("Failed to initialize video writer with any codec")
-        return None
+    # Process frames with timeout protection
+    import time
+    start_time = time.time()
+    max_processing_time = 120  # 2 minutes max processing time
 
-    frame_for_still_capture = {} # Dict to prevent capturing same frame multiple times
-    flaw_stills_captured = [] # Track detailed flaw analysis stills
-
-    current_frame_idx_output = 0
-    while cap_reprocess.isOpened():
-        ret, frame = cap_reprocess.read()
-        if not ret:
-            break
-
-        # Get stored pose landmarks for current frame
-        if current_frame_idx_output < len(processed_frames_data) and processed_frames_data[current_frame_idx_output].landmarks_raw:
-            results_to_draw = processed_frames_data[current_frame_idx_output].landmarks_raw
-            
-            # Draw skeleton
-            mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                     mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
-                                     mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
-
-            # Overlay phase information
-            for phase in shot_phases:
-                if phase.start_frame <= current_frame_idx_output <= phase.end_frame:
-                    cv2.putText(frame, f"Phase: {phase.name}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-                    break
-
-            # Overlay feedback points and capture stills
-            for feedback in feedback_points:
-                # Check if this frame is close to a feedback point (considering slow-motion)
-                # This logic is simplified; in production, you might want to show feedback for a few frames around the key moment.
-                if current_frame_idx_output == feedback.frame_number: # For precise frame match
-                    # Highlight critical landmarks for this discrepancy
-                    if results_to_draw.pose_landmarks and feedback.critical_landmarks:
-                        for i in range(len(feedback.critical_landmarks) - 1):
-                            lm1_coords = get_landmark_coords(results_to_draw.pose_landmarks, feedback.critical_landmarks[i], width, height)
-                            lm2_coords = get_landmark_coords(results_to_draw.pose_landmarks, feedback.critical_landmarks[i+1], width, height)
-                            cv2.line(frame, tuple(lm1_coords), tuple(lm2_coords), (0, 0, 255), 3) # Red line for discrepancy
-
-                    # Add text explanation
-                    feedback_text_lines = [
-                        feedback.discrepancy,
-                        f"Tip: {feedback.remedy_tips}"
-                    ]
-                    y_offset = height - 120
-                    for line in feedback_text_lines:
-                        cv2.putText(frame, line, (50, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
-                        y_offset += 25
-
-                    # Capture still frame
-                    if feedback.frame_number not in frame_for_still_capture:
-                        still_frame_name = f"temp_{job.job_id}_still_feedback_{feedback.frame_number}.png"
-                        cv2.imwrite(still_frame_name, frame)
-                        frame_for_still_capture[feedback.frame_number] = still_frame_name
-                        logging.info(f"Captured still frame: {still_frame_name}")
-            
-            # Process detailed flaw analysis stills
-            for flaw in detailed_flaws:
-                if current_frame_idx_output == flaw['frame_number']:
-                    # Create detailed flaw overlay
-                    flaw_overlay_frame = create_flaw_overlay(frame.copy(), flaw, results_to_draw, width, height)
-                    
-                    # Save the detailed flaw analysis still
-                    flaw_still_name = f"temp_{job.job_id}_flaw_{flaw['flaw_type']}_frame_{flaw['frame_number']}.png"
-                    cv2.imwrite(flaw_still_name, flaw_overlay_frame)
-                    flaw_stills_captured.append({
-                        'file_path': flaw_still_name,
-                        'flaw_data': flaw,
-                        'frame_number': flaw['frame_number']
-                    })
-                    logging.info(f"Captured detailed flaw analysis: {flaw_still_name}")
-                    
-                    # Also add flaw indicator to main video
-                    cv2.putText(frame, f"FLAW: {flaw['flaw_type'].replace('_', ' ').upper()}", 
-                               (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
-
-        out.write(frame)
-        current_frame_idx_output += 1
-
-    cap_reprocess.release()
-    out.release()
-    logging.info(f"Generated output video: {output_video_path}")
-
-    # Convert to web-compatible format using FFmpeg if needed
-    web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
     try:
-        import subprocess
-        # Convert to H.264 with web-compatible settings
+        while cap.isOpened() and current_frame_idx < max_frames:
+            # Check for timeout
+            if time.time() - start_time > max_processing_time:
+                logging.warning(f"Processing timeout reached after {max_processing_time} seconds")
+                break
+                
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            try:
+                # Log progress every 25 frames for deployment monitoring
+                if current_frame_idx % 25 == 0:
+                    elapsed = time.time() - start_time
+                    logging.info(f"Processing frame {current_frame_idx}/{max_frames} ({elapsed:.1f}s elapsed)")
+                    
+                # Convert the BGR image to RGB
+                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                image.flags.writeable = False
+                
+                # Process with MediaPipe
+                results = pose_model.process(image)
+                image.flags.writeable = True
+
+                frame_metrics = {}
+                if results and results.pose_landmarks:
+                    frames_with_pose += 1
+                    landmarks = results.pose_landmarks.landmark
+
+                    # Calculate key angles and store them
+                    try:
+                        r_shoulder = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER, width, height)
+                        r_elbow = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW, width, height)
+                        r_wrist = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)
+                        r_hip = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_HIP, width, height)
+                        r_knee = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_KNEE, width, height)
+                        r_ankle = get_landmark_coords(results.pose_landmarks, mp_pose.PoseLandmark.RIGHT_ANKLE, width, height)
+
+                        # Calculate angles with error handling
+                        elbow_angle = calculate_angle(r_shoulder, r_elbow, r_wrist)
+                        knee_angle = calculate_angle(r_hip, r_knee, r_ankle)
+                        wrist_angle = calculate_angle(r_elbow, r_wrist, [r_wrist[0], r_wrist[1] - 50])
+                        
+                        frame_metrics['elbow_angle'] = elbow_angle
+                        frame_metrics['knee_angle'] = knee_angle
+                        frame_metrics['wrist_angle_simplified'] = wrist_angle
+
+                        # Calculate velocities with bounds checking
+                        if current_frame_idx > 0 and len(processed_frames_data) > 0:
+                            prev_frame = processed_frames_data[-1]
+                            if prev_frame.landmarks_raw and prev_frame.landmarks_raw.pose_landmarks:
+                                prev_r_wrist_y = get_landmark_coords(prev_frame.landmarks_raw.pose_landmarks, mp_pose.PoseLandmark.RIGHT_WRIST, width, height)[1]
+                                wrist_vertical_velocity = (prev_r_wrist_y - r_wrist[1]) * fps
+                                frame_metrics['wrist_vertical_velocity'] = wrist_vertical_velocity
+                            else:
+                                frame_metrics['wrist_vertical_velocity'] = 0
+                        else:
+                            frame_metrics['wrist_vertical_velocity'] = 0
+
+                        processed_frames_data.append(FrameData(current_frame_idx, results, frame_metrics))
+                        
+                    except Exception as e:
+                        logging.warning(f"Error calculating metrics for frame {current_frame_idx}: {e}")
+                        processed_frames_data.append(FrameData(current_frame_idx, results, {}))
+                else:
+                    # Handle frames where pose is not detected
+                    processed_frames_data.append(FrameData(current_frame_idx, None, {}))
+                    
+            except Exception as e:
+                logging.error(f"Error processing frame {current_frame_idx}: {e}")
+                processed_frames_data.append(FrameData(current_frame_idx, None, {}))
+
+            current_frame_idx += 1
+            frames_processed += 1
+
+    except Exception as e:
+        logging.error(f"Critical error during frame processing: {e}")
+        return {
+            'error': f'Critical error during video processing: {str(e)}'
+        }
+    finally:
+        if cap:
+            cap.release()
+
+    processing_time = time.time() - start_time
+    logging.info(f"Finished pose estimation for {frames_processed} frames in {processing_time:.1f}s. Poses detected in {frames_with_pose} frames.")
+    
+    # Check if we have sufficient pose data
+    if frames_with_pose < 5:
+        logging.warning(f"Very few poses detected ({frames_with_pose}). Analysis may be limited.")
+        return {
+            'error': f'Insufficient pose detection ({frames_with_pose} frames). Please ensure the player is clearly visible in good lighting and the camera is steady.'
+        }
+
+    # Continue with analysis only if we have good data
+    try:
+        # Phase identification (simplified for deployment)
+        shot_phases = []
+        max_knee_bend_frame = -1
+        min_knee_angle = float('inf')
+        max_wrist_vel_frame = -1
+        max_wrist_vel = -float('inf')
+
+        for i, frame_data in enumerate(processed_frames_data):
+            if 'knee_angle' in frame_data.metrics and frame_data.metrics['knee_angle'] < min_knee_angle:
+                min_knee_angle = frame_data.metrics['knee_angle']
+                max_knee_bend_frame = i
+            if 'wrist_vertical_velocity' in frame_data.metrics and frame_data.metrics['wrist_vertical_velocity'] > max_wrist_vel:
+                max_wrist_vel = frame_data.metrics['wrist_vertical_velocity']
+                max_wrist_vel_frame = i
+
+        # Create phases
+        if max_knee_bend_frame != -1:
+            shot_phases.append(ShotPhase('Load/Dip', max(0, max_knee_bend_frame - 15), max_knee_bend_frame, max_knee_bend_frame))
+        if max_wrist_vel_frame != -1:
+            shot_phases.append(ShotPhase('Release', max_wrist_vel_frame, min(frames_processed - 1, max_wrist_vel_frame + 15), max_wrist_vel_frame))
+
+        logging.info(f"Identified {len(shot_phases)} shot phases.")
+
+        # Generate feedback points
+        feedback_points = []
+        for phase in shot_phases:
+            if phase.name == 'Release' and phase.key_moment_frame is not None:
+                if phase.key_moment_frame < len(processed_frames_data):
+                    release_frame_data = processed_frames_data[phase.key_moment_frame]
+                    if 'elbow_angle' in release_frame_data.metrics:
+                        user_elbow_angle = release_frame_data.metrics['elbow_angle']
+                        ideal_range = ideal_shot_data['release_elbow_angle']
+                        if not (ideal_range['min'] <= user_elbow_angle <= ideal_range['max']):
+                            feedback_points.append(FeedbackPoint(
+                                frame_number=phase.key_moment_frame,
+                                discrepancy=f"Elbow extension at release ({user_elbow_angle:.1f}°) is outside the ideal range ({ideal_range['min']}-{ideal_range['max']}°).",
+                                ideal_range=ideal_range,
+                                user_value=user_elbow_angle,
+                                remedy_tips=ideal_shot_data['common_remedies'].get('elbow_extension', 'Focus on full elbow extension.'),
+                                critical_landmarks=[mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_ELBOW, mp_pose.PoseLandmark.RIGHT_WRIST]
+                            ))
+
+        logging.info(f"Generated {len(feedback_points)} feedback points.")
+
+        # Simplified flaw detection for deployment
+        detailed_flaws = analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, fps)
+
+    except Exception as e:
+        logging.error(f"Error during analysis phase: {e}")
+        return {
+            'error': f'Error during shot analysis: {str(e)}'
+        }
+
+    # Generate output video with optimized settings for deployment
+    output_video_path = f"temp_{job.job_id}_analyzed.mp4"
+    
+    try:
+        logging.info(f"Starting video generation: {output_video_path}")
+        
+        # Re-open video for output generation
+        cap_reprocess = cv2.VideoCapture(local_video_path)
+        if not cap_reprocess.isOpened():
+            logging.error("Failed to reopen video for processing")
+            return {
+                'error': 'Failed to reopen video for analysis output generation'
+            }
+
+        # Try different codecs for cross-platform compatibility
+        codecs_to_try = ['avc1', 'mp4v', 'XVID', 'MJPG']
+        out = None
+        
+        for codec in codecs_to_try:
+            try:
+                fourcc = cv2.VideoWriter_fourcc(*codec)
+                out = cv2.VideoWriter(output_video_path, fourcc, max(fps / 4, 5), (width, height))
+                
+                # Test if the writer was opened successfully
+                if out.isOpened():
+                    logging.info(f"Successfully initialized video writer with codec: {codec}")
+                    break
+                else:
+                    out.release()
+                    out = None
+            except Exception as e:
+                logging.warning(f"Failed to initialize video writer with codec {codec}: {e}")
+                if out:
+                    out.release()
+                    out = None
+        
+        if out is None:
+            logging.error("Failed to initialize video writer with any codec")
+            cap_reprocess.release()
+            return {
+                'error': 'Failed to initialize video output writer'
+            }
+
+        frame_for_still_capture = {}
+        flaw_stills_captured = []
+        current_frame_idx_output = 0
+
+        # Process frames for output (limit to processed frames)
+        while cap_reprocess.isOpened() and current_frame_idx_output < len(processed_frames_data):
+            ret, frame = cap_reprocess.read()
+            if not ret:
+                break
+
+            try:
+                # Get stored pose landmarks for current frame
+                if current_frame_idx_output < len(processed_frames_data) and processed_frames_data[current_frame_idx_output].landmarks_raw:
+                    results_to_draw = processed_frames_data[current_frame_idx_output].landmarks_raw
+                    
+                    # Draw skeleton
+                    mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                             mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
+                                             mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
+
+                    # Add phase overlay
+                    for phase in shot_phases:
+                        if phase.start_frame <= current_frame_idx_output <= phase.end_frame:
+                            cv2.putText(frame, f"Phase: {phase.name}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                            break
+
+                    # Process feedback points
+                    for feedback in feedback_points:
+                        if current_frame_idx_output == feedback.frame_number:
+                            if results_to_draw.pose_landmarks and feedback.critical_landmarks:
+                                for i in range(len(feedback.critical_landmarks) - 1):
+                                    lm1_coords = get_landmark_coords(results_to_draw.pose_landmarks, feedback.critical_landmarks[i], width, height)
+                                    lm2_coords = get_landmark_coords(results_to_draw.pose_landmarks, feedback.critical_landmarks[i+1], width, height)
+                                    cv2.line(frame, tuple(lm1_coords), tuple(lm2_coords), (0, 0, 255), 3)
+
+                            # Capture still frame
+                            if feedback.frame_number not in frame_for_still_capture:
+                                still_frame_name = f"temp_{job.job_id}_still_feedback_{feedback.frame_number}.png"
+                                cv2.imwrite(still_frame_name, frame)
+                                frame_for_still_capture[feedback.frame_number] = still_frame_name
+                                logging.info(f"Captured still frame: {still_frame_name}")
+
+                    # Process flaw stills (limit to first 3 for deployment efficiency)
+                    for flaw in detailed_flaws[:3]:
+                        if current_frame_idx_output == flaw['frame_number']:
+                            flaw_overlay_frame = create_flaw_overlay(frame.copy(), flaw, results_to_draw, width, height)
+                            flaw_still_name = f"temp_{job.job_id}_flaw_{flaw['flaw_type']}_frame_{flaw['frame_number']}.png"
+                            cv2.imwrite(flaw_still_name, flaw_overlay_frame)
+                            flaw_stills_captured.append({
+                                'file_path': flaw_still_name,
+                                'flaw_data': flaw,
+                                'frame_number': flaw['frame_number']
+                            })
+                            logging.info(f"Captured flaw analysis: {flaw_still_name}")
+
+                out.write(frame)
+                current_frame_idx_output += 1
+                
+            except Exception as e:
+                logging.warning(f"Error processing output frame {current_frame_idx_output}: {e}")
+                out.write(frame)  # Write frame anyway
+                current_frame_idx_output += 1
+
+        cap_reprocess.release()
+        out.release()
+        logging.info(f"Generated output video: {output_video_path}")
+
+    except Exception as e:
+        logging.error(f"Error generating output video: {e}")
+        return {
+            'error': f'Error generating analysis video: {str(e)}'
+        }
+
+    # Clean up input video early to save space
+    try:
+        if os.path.exists(local_video_path):
+            os.remove(local_video_path)
+            logging.info(f"Cleaned up input video: {local_video_path}")
+    except Exception as e:
+        logging.warning(f"Failed to cleanup input video: {e}")
+
+    # Convert to web format with deployment-optimized settings for mobile compatibility
+    try:
+        web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
+        logging.info(f"Converting to web format: {output_video_path} -> {web_compatible_path}")
+        
         ffmpeg_cmd = [
-            'ffmpeg', '-y',  # -y overwrites output file
+            'ffmpeg', '-y',
             '-i', output_video_path,
-            '-c:v', 'libx264',  # H.264 video codec
-            '-profile:v', 'baseline',  # Baseline profile for maximum compatibility
-            '-level', '3.0',  # Compatibility level
-            '-pix_fmt', 'yuv420p',  # Pixel format for web compatibility
-            '-movflags', '+faststart',  # Move metadata to beginning for fast web streaming
-            '-preset', 'medium',  # Encoding preset
-            '-crf', '23',  # Quality setting (lower = better quality)
+            '-c:v', 'libx264',
+            '-preset', 'medium',  # Better quality than ultrafast
+            '-profile:v', 'main',  # Better mobile compatibility than baseline
+            '-level', '4.0',  # Higher level for better compatibility
+            '-pix_fmt', 'yuv420p',
+            '-crf', '26',  # Better quality than 30
+            '-maxrate', '800k',  # Slightly higher bitrate
+            '-bufsize', '1600k',
+            '-movflags', '+faststart',
+            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+            '-metadata:s:v:0', 'rotate=0',  # Remove any rotation metadata
+            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
+            '-fflags', '+genpts',  # Generate presentation timestamps
             web_compatible_path
         ]
         
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
         
         if result.returncode == 0 and os.path.exists(web_compatible_path):
-            # Replace original with web-compatible version
-            os.remove(output_video_path)
+            try:
+                os.remove(output_video_path)
+            except:
+                pass
             os.rename(web_compatible_path, output_video_path)
-            logging.info(f"Converted video to web-compatible format: {output_video_path}")
+            logging.info(f"Successfully converted to web format with mobile compatibility")
         else:
-            logging.warning(f"FFmpeg conversion failed, using original format. Error: {result.stderr}")
+            logging.warning(f"FFmpeg conversion failed: {result.stderr}")
             
     except Exception as e:
-        logging.warning(f"Could not convert video to web format: {e}. Using original format.")
-        # Continue with original video if FFmpeg fails
+        logging.warning(f"Web format conversion failed: {e}")
 
-    # --- Store Results & Notify User ---
-    # Upload the analyzed video and still frames to cloud storage
-    final_video_url = upload_file_to_storage(output_video_path, f"analyzed_videos/{job.job_id}_analyzed.mp4")
-    
-    still_urls = {}
-    for frame_num, still_path in frame_for_still_capture.items():
-        still_urls[frame_num] = upload_file_to_storage(still_path, f"still_frames/{job.job_id}_still_{frame_num}.png")
-
-    # Create the final analysis report object
-    analysis_report = AnalysisReport(
-        job_id=job.job_id,
-        user_id=job.user_id,
-        video_url=job.video_url,
-        phases=shot_phases,
-        feedback_points=feedback_points,
-        overall_score=None # Placeholder for a future scoring system
-    )
-    
-    # Generate comprehensive 60-day improvement plan PDF
-    pdf_results = {
-        'analysis_report': analysis_report,
-        'output_video_path': output_video_path,
-        'feedback_stills': frame_for_still_capture,
-        'flaw_stills': flaw_stills_captured,
-        'detailed_flaws': detailed_flaws,
-        'shot_phases': shot_phases,
-        'feedback_points': feedback_points
-    }
-    
+    # Generate PDF with error handling
     improvement_plan_pdf = None
     try:
+        pdf_results = {
+            'analysis_report': None,
+            'output_video_path': output_video_path,
+            'feedback_stills': frame_for_still_capture,
+            'flaw_stills': flaw_stills_captured,
+            'detailed_flaws': detailed_flaws,
+            'shot_phases': shot_phases,
+            'feedback_points': feedback_points
+        }
         improvement_plan_pdf = generate_improvement_plan_pdf(pdf_results, job.job_id)
         if improvement_plan_pdf:
-            logging.info(f"Generated 60-day improvement plan PDF: {improvement_plan_pdf}")
-        else:
-            logging.warning("Failed to generate improvement plan PDF")
+            logging.info(f"Generated PDF: {improvement_plan_pdf}")
     except Exception as e:
-        logging.error(f"Error generating improvement plan PDF: {e}")
+        logging.warning(f"PDF generation failed: {e}")
+
+    logging.info(f"Analysis completed successfully for job {job.job_id}")
     
-    # Return analysis results including flaw stills for web app integration
+    # Return comprehensive results
     return {
-        'analysis_report': analysis_report,
+        'analysis_report': None,  # Simplified for deployment
         'output_video_path': output_video_path,
         'feedback_stills': frame_for_still_capture,
         'flaw_stills': flaw_stills_captured,
@@ -784,109 +941,3 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         'feedback_points': feedback_points,
         'improvement_plan_pdf': improvement_plan_pdf
     }
-
-    # Print summary of analysis
-    print(f"\n=== ANALYSIS COMPLETE FOR JOB {job.job_id} ===")
-    print(f"Phases identified: {len(shot_phases)}")
-    for phase in shot_phases:
-        print(f"  - {phase.name}: frames {phase.start_frame}-{phase.end_frame}")
-    print(f"Feedback points: {len(feedback_points)}")
-    for feedback in feedback_points:
-        print(f"  - Frame {feedback.frame_number}: {feedback.discrepancy}")
-    print(f"Detailed flaw analysis: {len(detailed_flaws)} flaws detected")
-    for flaw in detailed_flaws:
-        print(f"  - {flaw['flaw_type']} (Frame {flaw['frame_number']}): {flaw['plain_language']}")
-    print(f"Output video: {output_video_path}")
-    print(f"Still frames captured: {len(frame_for_still_capture)}")
-    print(f"Detailed flaw stills: {len(flaw_stills_captured)}")
-    
-    # Generate detailed flaw report
-    if detailed_flaws:
-        print(f"\n=== DETAILED FLAW ANALYSIS ===")
-        for i, flaw in enumerate(detailed_flaws, 1):
-            print(f"\n{i}. {flaw['flaw_type'].replace('_', ' ').title()}")
-            print(f"   Phase: {flaw['phase']}")
-            print(f"   Frame: {flaw['frame_number']}")
-            print(f"   Severity: {flaw['severity']:.1f}")
-            print(f"   Issue: {flaw['plain_language']}")
-            print(f"   Coaching Tip: {flaw['coaching_tip']}")
-            print(f"   Recommended Drill: {flaw['drill_suggestion']}")
-            if i <= len(flaw_stills_captured):
-                print(f"   Analysis Image: {flaw_stills_captured[i-1]['file_path']}")
-
-        # Clean up local temporary files
-        if os.path.exists(local_video_path):
-            os.remove(local_video_path)
-        
-        logging.info(f"Analysis for job {job.job_id} completed successfully and results stored/notified.")
-        
-        # Return analysis results
-        return {
-            'analysis_report': analysis_report,
-            'output_video_path': output_video_path,
-            'feedback_stills': frame_for_still_capture,
-            'flaw_stills': flaw_stills_captured,
-            'detailed_flaws': detailed_flaws,
-            'shot_phases': shot_phases,
-            'feedback_points': feedback_points,
-            'improvement_plan_pdf': improvement_plan_pdf
-        }
-
-# --- Entry Point (Conceptual for a serverless function or containerized service) ---
-def handler(event, context):
-    """
-    This function would be the entry point, e.g., for an AWS Lambda or Google Cloud Function.
-    'event' would contain information from the message queue (e.g., SQS message, Pub/Sub message)
-    """
-    # Parse the event to get job details
-    job_data = json.loads(event['body']) # Assuming JSON payload from a queue
-    job = VideoAnalysisJob(
-        job_id=job_data['job_id'],
-        user_id=job_data['user_id'],
-        video_url=job_data['video_url']
-    )
-
-    # Load ideal shot data (could be cached or loaded from a central config service)
-    ideal_shot_data = load_ideal_shot_data('ideal_shot_guide.json') # Path in the deployment package
-
-    try:
-        process_video_for_analysis(job, ideal_shot_data)
-        return {"statusCode": 200, "body": json.dumps({"message": "Processing started"})}
-    except Exception as e:
-        logging.error(f"Error processing job {job.job_id}: {e}")
-        job.status = "FAILED"
-        # Update job status in DB
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
-
-# --- Local Testing/Demonstration ---
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    print("Running local demonstration of shot analysis process...")
-
-    # Create a dummy video file for testing if it doesn't exist
-    test_video_path = 'user_shot.mp4'
-    if not os.path.exists(test_video_path):
-        print(f"Please place a test video file named '{test_video_path}' in this directory.")
-        print("Creating a dummy file for demonstration purposes (you'll need a real video for full functionality).")
-        # Create a blank video for testing the flow
-        dummy_video_writer = cv2.VideoWriter(test_video_path, cv2.VideoWriter_fourcc(*'mp4v'), 20, (640, 480))
-        for _ in range(50): # 50 frames, 2.5 seconds
-            dummy_video_writer.write(np.zeros((480, 640, 3), dtype=np.uint8))
-        dummy_video_writer.release()
-        print(f"Dummy video '{test_video_path}' created.")
-
-    # Simulate a job being triggered
-    dummy_job_id = "test_shot_123"
-    dummy_user_id = "user_abc"
-    dummy_video_url = test_video_path # In production, this would be a cloud storage URL
-
-    test_job = VideoAnalysisJob(job_id=dummy_job_id, user_id=dummy_user_id, video_url=dummy_video_url)
-
-    # Simulate ideal shot data loading
-    # You would need a 'ideal_shot_guide.json' file with your ideal ranges
-    # For quick testing, the function has a dummy fallback
-    ideal_data = load_ideal_shot_data('ideal_shot_guide.json')
-
-    process_video_for_analysis(test_job, ideal_data)
-    print("Local demonstration finished. Check current directory for output files.")
-    print(f"For a full test, ensure '{test_video_path}' is a real basketball shot video.")
