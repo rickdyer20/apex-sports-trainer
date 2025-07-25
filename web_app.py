@@ -79,9 +79,27 @@ def save_results_to_file(job_id, results_data):
     try:
         results_file = os.path.join('jobs', f"{job_id}_results.json")
         serializable_data = results_data.copy()
+        
         # Convert datetime objects to ISO strings
         if 'processed_at' in serializable_data:
             serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
+        
+        # Convert complex objects to serializable format
+        def make_serializable(obj):
+            if hasattr(obj, '__dict__'):
+                # Convert objects with attributes to dictionaries
+                return {k: make_serializable(v) for k, v in obj.__dict__.items()}
+            elif isinstance(obj, list):
+                return [make_serializable(item) for item in obj]
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v) for k, v in obj.items()}
+            else:
+                return obj
+        
+        # Apply serialization to complex fields
+        for key in ['shot_phases', 'detailed_flaws', 'feedback_points']:
+            if key in serializable_data:
+                serializable_data[key] = make_serializable(serializable_data[key])
         
         with open(results_file, 'w') as f:
             json.dump(serializable_data, f, indent=2)
