@@ -474,7 +474,8 @@ def wrap_text(text, max_chars):
 # --- Core Processing Logic (within the Pose Estimation & Analysis Service) ---
 
 def fix_video_orientation(video_path):
-    """Fix video orientation based on metadata rotation info"""
+    """Fix video orientation based on metadata rotation info. Returns rotation angle if corrected, else 0."""
+    rotation = 0
     try:
         import subprocess
         
@@ -487,7 +488,6 @@ def fix_video_orientation(video_path):
             probe_data = json.loads(result.stdout)
             
             # Check for rotation metadata
-            rotation = 0
             for stream in probe_data.get('streams', []):
                 if stream.get('codec_type') == 'video':
                     # Check for rotation in side_data
@@ -510,7 +510,7 @@ def fix_video_orientation(video_path):
                     break
             
             # If rotation detected, fix it
-            if rotation != 0 and rotation % 90 == 0:
+            if rotation in [90, 180, 270]:
                 corrected_path = video_path.replace('.mp4', '_corrected.mp4')
                 
                 # Determine transpose filter based on rotation
@@ -520,34 +520,32 @@ def fix_video_orientation(video_path):
                     transpose_filter = 'transpose=2,transpose=2'  # 180°
                 elif rotation == 270:
                     transpose_filter = 'transpose=2'  # 90° counter-clockwise
-                else:
-                    transpose_filter = None
                 
-                if transpose_filter:
-                    fix_cmd = [
-                        'ffmpeg', '-y',
-                        '-i', video_path,
-                        '-vf', transpose_filter,
-                        '-c:a', 'copy',  # Copy audio without re-encoding
-                        '-metadata:s:v:0', 'rotate=0',  # Remove rotation metadata
-                        corrected_path
-                    ]
-                    
-                    fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
-                    
-                    if fix_result.returncode == 0 and os.path.exists(corrected_path):
-                        # Replace original with corrected version
-                        os.remove(video_path)
-                        os.rename(corrected_path, video_path)
-                        logging.info(f"Fixed video orientation (rotated {rotation}°): {video_path}")
-                        return True
-                    else:
-                        logging.warning(f"Failed to fix video orientation: {fix_result.stderr}")
+                fix_cmd = [
+                    'ffmpeg', '-y',
+                    '-i', video_path,
+                    '-vf', transpose_filter,
+                    '-c:a', 'copy',  # Copy audio without re-encoding
+                    '-metadata:s:v:0', 'rotate=0',  # Remove rotation metadata
+                    corrected_path
+                ]
+                
+                fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
+                
+                if fix_result.returncode == 0 and os.path.exists(corrected_path):
+                    # Replace original with corrected version
+                    os.remove(video_path)
+                    os.rename(corrected_path, video_path)
+                    logging.info(f"Fixed video orientation (rotated {rotation}°): {video_path}")
+                    return rotation
+                else:
+                    logging.warning(f"Failed to fix video orientation: {fix_result.stderr}")
+                    return 0
                         
     except Exception as e:
         logging.warning(f"Could not check/fix video orientation: {e}")
     
-    return False
+    return 0
 
 def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     """
@@ -608,6 +606,11 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
+        # If rotation was detected, we need to swap width and height for the video writer
+        if rotation in [90, 270]:
+            logging.info(f"Swapping width and height for video writer due to {rotation} degree rotation.")
+            width, height = height, width
+
         logging.info(f"Video properties - FPS: {fps}, Size: {width}x{height}, Frames: {total_frames}")
         
         # Validate video properties
