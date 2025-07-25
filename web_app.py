@@ -93,16 +93,29 @@ def save_results_to_file(job_id, results_data):
             serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
         
         # Convert complex objects to serializable format
-        def make_serializable(obj):
-            if hasattr(obj, '__dict__'):
-                # Convert objects with attributes to dictionaries
-                return {k: make_serializable(v) for k, v in obj.__dict__.items()}
-            elif isinstance(obj, list):
-                return [make_serializable(item) for item in obj]
-            elif isinstance(obj, dict):
-                return {k: make_serializable(v) for k, v in obj.items()}
-            else:
+        def make_serializable(obj, depth=0, max_depth=5):
+            # Prevent infinite recursion
+            if depth > max_depth:
+                return str(obj)
+            
+            # Handle basic types first
+            if obj is None or isinstance(obj, (str, int, float, bool)):
                 return obj
+            elif isinstance(obj, list):
+                return [make_serializable(item, depth + 1, max_depth) for item in obj]
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
+            elif hasattr(obj, '__dict__'):
+                # Skip MediaPipe and OpenCV objects - just convert to string representation
+                if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy.ndarray']):
+                    return str(obj)
+                # Convert other objects with attributes to dictionaries
+                try:
+                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
+                except:
+                    return str(obj)
+            else:
+                return str(obj)
         
         # Apply serialization to complex fields
         for key in ['shot_phases', 'detailed_flaws', 'feedback_points']:

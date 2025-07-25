@@ -661,6 +661,14 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 if current_frame_idx % 25 == 0:
                     elapsed = time.time() - start_time
                     logging.info(f"Processing frame {current_frame_idx}/{max_frames} ({elapsed:.1f}s elapsed)")
+                
+                # Apply rotation to the frame if needed
+                if rotation == 90:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+                elif rotation == 180:
+                    frame = cv2.rotate(frame, cv2.ROTATE_180)
+                elif rotation == 270:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                     
                 # Convert the BGR image to RGB
                 image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -834,6 +842,14 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             if current_frame_idx_output % frame_skip != 0:
                 current_frame_idx_output += 1
                 continue
+
+            # Apply rotation to the output frame if needed
+            if rotation == 90:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            elif rotation == 180:
+                frame = cv2.rotate(frame, cv2.ROTATE_180)
+            elif rotation == 270:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
             # --- Apply overlays to the frame ---
             try:
