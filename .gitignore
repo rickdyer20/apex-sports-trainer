@@ -89,4 +89,4 @@ config.env
 secrets.json
 
 # Generated files
-ideal_shot_guide.json
+# ideal_shot_guide.json - allowing this file to be committed
