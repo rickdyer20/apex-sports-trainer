@@ -622,10 +622,10 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 'error': 'Invalid video format or corrupted video file'
             }
         
-        # Limit processing for deployment efficiency
-        max_frames = min(total_frames, 300)  # Process max 300 frames (10-15 seconds at 30fps)
+        # Limit processing for deployment efficiency and memory constraints
+        max_frames = min(total_frames, 150)  # Process max 150 frames (5-7 seconds at 30fps) to avoid memory issues
         if total_frames > max_frames:
-            logging.info(f"Limiting processing to {max_frames} frames (original: {total_frames}) for deployment efficiency")
+            logging.info(f"Limiting processing to {max_frames} frames (original: {total_frames}) for deployment efficiency and memory constraints")
 
     except Exception as e:
         logging.error(f"Error initializing video processing: {e}")
@@ -640,10 +640,10 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     frames_processed = 0
     frames_with_pose = 0
     
-    # Process frames with timeout protection
+    # Process frames with timeout protection and memory management
     import time
     start_time = time.time()
-    max_processing_time = 120  # 2 minutes max processing time
+    max_processing_time = 60  # Reduce to 1 minute max processing time to avoid memory issues
 
     try:
         while cap.isOpened() and current_frame_idx < max_frames:
@@ -807,9 +807,10 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         if not cap_reprocess.isOpened():
             raise IOError("Failed to reopen video for processing")
 
-        # --- Stage 1: Attempt to write video with cv2.VideoWriter ---
+        # --- Stage 1: Attempt to write video with cv2.VideoWriter (simplified for memory efficiency) ---
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_video_path, fourcc, max(fps / 4, 5), (width, height))
+        reduced_fps = max(fps / 8, 3)  # Further reduce FPS to save memory and processing time
+        out = cv2.VideoWriter(output_video_path, fourcc, reduced_fps, (width, height))
         
         if not out.isOpened():
             logging.warning("cv2.VideoWriter failed to open with 'mp4v'. Will fallback to ffmpeg.")
@@ -820,11 +821,19 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         frame_for_still_capture = {}
         flaw_stills_captured = []
         current_frame_idx_output = 0
+        
+        # Process every 2nd frame to reduce memory usage
+        frame_skip = 2
 
         while cap_reprocess.isOpened() and current_frame_idx_output < len(processed_frames_data):
             ret, frame = cap_reprocess.read()
             if not ret:
                 break
+
+            # Skip frames to reduce processing load
+            if current_frame_idx_output % frame_skip != 0:
+                current_frame_idx_output += 1
+                continue
 
             # --- Apply overlays to the frame ---
             try:
@@ -872,7 +881,7 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         if not video_generated and FFMPEG_AVAILABLE:
             logging.info("cv2.VideoWriter failed. Attempting to build video with ffmpeg.")
             frame_dir = save_frames_for_ffmpeg(frame_buffer, job.job_id)
-            if create_video_from_frames_ffmpeg(frame_dir, output_video_path, max(fps / 4, 5)):
+            if create_video_from_frames_ffmpeg(frame_dir, output_video_path, reduced_fps):
                 video_generated = True
             else:
                 logging.error("ffmpeg fallback also failed. No video will be available.")
@@ -889,41 +898,13 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.warning(f"Failed to cleanup input video: {e}")
 
-    # --- Stage 3: Convert to web-compatible format if a video was generated ---
+    # --- Stage 3: Skip web format conversion to avoid memory issues ---
+    # The ffmpeg web conversion is causing memory issues on Railway, so we'll skip it
+    # The video should still be playable in most browsers
     if video_generated:
-        try:
-            web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
-            logging.info(f"Converting to web format: {output_video_path} -> {web_compatible_path}")
-            
-            ffmpeg_cmd = [
-                'ffmpeg', '-y',
-                '-i', output_video_path,
-                '-c:v', 'libx264',
-                '-preset', 'ultrafast',
-                '-profile:v', 'baseline',
-                '-level', '3.0',
-                '-pix_fmt', 'yuv420p',
-                '-crf', '28',
-                '-movflags', '+faststart',
-                web_compatible_path
-            ]
-            
-            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=90)
-            
-            if result.returncode == 0 and os.path.exists(web_compatible_path):
-                try:
-                    os.remove(output_video_path)
-                except:
-                    pass
-                os.rename(web_compatible_path, output_video_path)
-                logging.info(f"Successfully converted to web format")
-            else:
-                logging.warning(f"FFmpeg web conversion failed: {result.stderr}. Using original video.")
-                
-        except Exception as e:
-            logging.warning(f"Web format conversion failed: {e}. Using original video.")
+        logging.info("Skipping web format conversion to avoid memory issues on Railway platform.")
     else:
-        logging.warning("Skipping web conversion because no video was generated.")
+        logging.warning("No video was generated to convert.")
         output_video_path = None # Ensure no broken video path is returned
 
     # Generate PDF with error handling
