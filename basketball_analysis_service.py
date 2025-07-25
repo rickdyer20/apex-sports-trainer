@@ -871,31 +871,26 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.warning(f"Failed to cleanup input video: {e}")
 
-    # Convert to web format with deployment-optimized settings for mobile compatibility
+    # Convert to web format with simplified settings for better compatibility
     try:
         web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
         logging.info(f"Converting to web format: {output_video_path} -> {web_compatible_path}")
         
+        # Try simpler FFmpeg command first
         ffmpeg_cmd = [
             'ffmpeg', '-y',
             '-i', output_video_path,
             '-c:v', 'libx264',
-            '-preset', 'medium',  # Better quality than ultrafast
-            '-profile:v', 'main',  # Better mobile compatibility than baseline
-            '-level', '4.0',  # Higher level for better compatibility
+            '-preset', 'ultrafast',  # Fastest encoding for cloud compatibility
+            '-profile:v', 'baseline',  # Most compatible profile
+            '-level', '3.0',  # Lower level for maximum compatibility
             '-pix_fmt', 'yuv420p',
-            '-crf', '26',  # Better quality than 30
-            '-maxrate', '800k',  # Slightly higher bitrate
-            '-bufsize', '1600k',
+            '-crf', '28',  # Reasonable quality
             '-movflags', '+faststart',
-            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-            '-metadata:s:v:0', 'rotate=0',  # Remove any rotation metadata
-            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
-            '-fflags', '+genpts',  # Generate presentation timestamps
             web_compatible_path
         ]
         
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=90)
         
         if result.returncode == 0 and os.path.exists(web_compatible_path):
             try:
@@ -903,12 +898,16 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             except:
                 pass
             os.rename(web_compatible_path, output_video_path)
-            logging.info(f"Successfully converted to web format with mobile compatibility")
+            logging.info(f"Successfully converted to web format")
         else:
             logging.warning(f"FFmpeg conversion failed: {result.stderr}")
+            # If FFmpeg fails, continue with original video - don't fail the entire analysis
+            logging.info("Continuing with original video format")
             
     except Exception as e:
         logging.warning(f"Web format conversion failed: {e}")
+        # Continue with original video if conversion fails
+        logging.info("Continuing with original video format")
 
     # Generate PDF with error handling
     improvement_plan_pdf = None
