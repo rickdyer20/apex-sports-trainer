@@ -24,6 +24,9 @@ mp_pose = mp.solutions.pose
 pose_model = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
 
+# Add a global flag to check if ffmpeg is available
+FFMPEG_AVAILABLE = shutil.which('ffmpeg') is not None
+
 # --- Data Structures (Conceptual - how data would be stored in a DB/object storage) ---
 
 class VideoAnalysisJob:
@@ -74,6 +77,47 @@ class AnalysisReport:
         self.created_at = datetime.now()
 
 # --- Helper Functions (as part of the service's utility module) ---
+
+def save_frames_for_ffmpeg(frames, job_id):
+    """Saves frames to a temporary directory for ffmpeg processing."""
+    frame_dir = f"temp_{job_id}_frames"
+    os.makedirs(frame_dir, exist_ok=True)
+    for i, frame in enumerate(frames):
+        cv2.imwrite(os.path.join(frame_dir, f"frame_{i:04d}.png"), frame)
+    return frame_dir
+
+def create_video_from_frames_ffmpeg(frame_dir, output_path, fps):
+    """Creates a video from frames using ffmpeg."""
+    if not FFMPEG_AVAILABLE:
+        logging.error("ffmpeg not found, cannot create video from frames.")
+        return False
+        
+    ffmpeg_cmd = [
+        'ffmpeg', '-y',
+        '-framerate', str(fps),
+        '-i', os.path.join(frame_dir, 'frame_%04d.png'),
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        '-preset', 'ultrafast',
+        output_path
+    ]
+    try:
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            logging.info(f"Successfully created video with ffmpeg: {output_path}")
+            return True
+        else:
+            logging.error(f"ffmpeg failed to create video: {result.stderr}")
+            return False
+    except Exception as e:
+        logging.error(f"Exception during ffmpeg video creation: {e}")
+        return False
+    finally:
+        # Clean up frames
+        try:
+            shutil.rmtree(frame_dir)
+        except Exception as e:
+            logging.warning(f"Failed to remove temp frame directory: {e}")
 
 def download_video_from_storage(video_url, local_path):
     """Simulates downloading video from S3/GCS."""
@@ -747,92 +791,52 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             'error': f'Error during shot analysis: {str(e)}'
         }
 
-    # Generate output video with optimized settings for deployment
+    # --- Video Generation (Robust Pipeline) ---
     output_video_path = f"temp_{job.job_id}_analyzed.mp4"
+    video_generated = False
     
     try:
-        logging.info(f"Starting video generation: {output_video_path}")
+        logging.info(f"Starting robust video generation pipeline: {output_video_path}")
         
-        # Re-open video for output generation
+        # Re-open video to get raw frames for processing
         cap_reprocess = cv2.VideoCapture(local_video_path)
         if not cap_reprocess.isOpened():
-            logging.error("Failed to reopen video for processing")
-            return {
-                'error': 'Failed to reopen video for analysis output generation'
-            }
+            raise IOError("Failed to reopen video for processing")
 
-        # Try different codecs for cross-platform compatibility
-        codecs_to_try = ['avc1', 'mp4v', 'XVID', 'MJPG']
-        out = None
+        # --- Stage 1: Attempt to write video with cv2.VideoWriter ---
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_video_path, fourcc, max(fps / 4, 5), (width, height))
         
-        for codec in codecs_to_try:
-            try:
-                fourcc = cv2.VideoWriter_fourcc(*codec)
-                out = cv2.VideoWriter(output_video_path, fourcc, max(fps / 4, 5), (width, height))
-                
-                # Test if the writer was opened successfully
-                if out.isOpened():
-                    logging.info(f"Successfully initialized video writer with codec: {codec}")
-                    break
-                else:
-                    out.release()
-                    out = None
-            except Exception as e:
-                logging.warning(f"Failed to initialize video writer with codec {codec}: {e}")
-                if out:
-                    out.release()
-                    out = None
+        if not out.isOpened():
+            logging.warning("cv2.VideoWriter failed to open with 'mp4v'. Will fallback to ffmpeg.")
+            out.release()
+            out = None
         
-        if out is None:
-            logging.error("Failed to initialize video writer with any codec")
-            cap_reprocess.release()
-            return {
-                'error': 'Failed to initialize video output writer'
-            }
-
+        frame_buffer = [] # To hold frames for ffmpeg fallback
         frame_for_still_capture = {}
         flaw_stills_captured = []
         current_frame_idx_output = 0
 
-        # Process frames for output (limit to processed frames)
         while cap_reprocess.isOpened() and current_frame_idx_output < len(processed_frames_data):
             ret, frame = cap_reprocess.read()
             if not ret:
                 break
 
+            # --- Apply overlays to the frame ---
             try:
-                # Get stored pose landmarks for current frame
                 if current_frame_idx_output < len(processed_frames_data) and processed_frames_data[current_frame_idx_output].landmarks_raw:
                     results_to_draw = processed_frames_data[current_frame_idx_output].landmarks_raw
-                    
-                    # Draw skeleton
                     mp_drawing.draw_landmarks(frame, results_to_draw.pose_landmarks, mp_pose.POSE_CONNECTIONS,
                                              mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
                                              mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
-
+                    
                     # Add phase overlay
                     for phase in shot_phases:
                         if phase.start_frame <= current_frame_idx_output <= phase.end_frame:
                             cv2.putText(frame, f"Phase: {phase.name}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
                             break
-
-                    # Process feedback points
-                    for feedback in feedback_points:
-                        if current_frame_idx_output == feedback.frame_number:
-                            if results_to_draw.pose_landmarks and feedback.critical_landmarks:
-                                for i in range(len(feedback.critical_landmarks) - 1):
-                                    lm1_coords = get_landmark_coords(results_to_draw.pose_landmarks, feedback.critical_landmarks[i], width, height)
-                                    lm2_coords = get_landmark_coords(results_to_draw.pose_landmarks, feedback.critical_landmarks[i+1], width, height)
-                                    cv2.line(frame, tuple(lm1_coords), tuple(lm2_coords), (0, 0, 255), 3)
-
-                            # Capture still frame
-                            if feedback.frame_number not in frame_for_still_capture:
-                                still_frame_name = f"temp_{job.job_id}_still_feedback_{feedback.frame_number}.png"
-                                cv2.imwrite(still_frame_name, frame)
-                                frame_for_still_capture[feedback.frame_number] = still_frame_name
-                                logging.info(f"Captured still frame: {still_frame_name}")
-
-                    # Process flaw stills (limit to first 3 for deployment efficiency)
+                    
+                    # Capture flaw stills
                     for flaw in detailed_flaws[:3]:
                         if current_frame_idx_output == flaw['frame_number']:
                             flaw_overlay_frame = create_flaw_overlay(frame.copy(), flaw, results_to_draw, width, height)
@@ -843,25 +847,35 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                                 'flaw_data': flaw,
                                 'frame_number': flaw['frame_number']
                             })
-                            logging.info(f"Captured flaw analysis: {flaw_still_name}")
-
-                out.write(frame)
-                current_frame_idx_output += 1
-                
             except Exception as e:
-                logging.warning(f"Error processing output frame {current_frame_idx_output}: {e}")
-                out.write(frame)  # Write frame anyway
-                current_frame_idx_output += 1
+                logging.warning(f"Error applying overlay to frame {current_frame_idx_output}: {e}")
+
+            # --- Write frame or buffer it ---
+            if out:
+                out.write(frame)
+            else:
+                frame_buffer.append(frame)
+            
+            current_frame_idx_output += 1
 
         cap_reprocess.release()
-        out.release()
-        logging.info(f"Generated output video: {output_video_path}")
+        if out:
+            out.release()
+            video_generated = True
+            logging.info(f"Successfully generated video with cv2.VideoWriter.")
 
+        # --- Stage 2: Fallback to ffmpeg if cv2.VideoWriter failed ---
+        if not video_generated and FFMPEG_AVAILABLE:
+            logging.info("cv2.VideoWriter failed. Attempting to build video with ffmpeg.")
+            frame_dir = save_frames_for_ffmpeg(frame_buffer, job.job_id)
+            if create_video_from_frames_ffmpeg(frame_dir, output_video_path, max(fps / 4, 5)):
+                video_generated = True
+            else:
+                logging.error("ffmpeg fallback also failed. No video will be available.")
+        
     except Exception as e:
-        logging.error(f"Error generating output video: {e}")
-        return {
-            'error': f'Error generating analysis video: {str(e)}'
-        }
+        logging.error(f"Critical error in video generation pipeline: {e}")
+        video_generated = False
 
     # Clean up input video early to save space
     try:
@@ -871,43 +885,42 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.warning(f"Failed to cleanup input video: {e}")
 
-    # Convert to web format with simplified settings for better compatibility
-    try:
-        web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
-        logging.info(f"Converting to web format: {output_video_path} -> {web_compatible_path}")
-        
-        # Try simpler FFmpeg command first
-        ffmpeg_cmd = [
-            'ffmpeg', '-y',
-            '-i', output_video_path,
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',  # Fastest encoding for cloud compatibility
-            '-profile:v', 'baseline',  # Most compatible profile
-            '-level', '3.0',  # Lower level for maximum compatibility
-            '-pix_fmt', 'yuv420p',
-            '-crf', '28',  # Reasonable quality
-            '-movflags', '+faststart',
-            web_compatible_path
-        ]
-        
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=90)
-        
-        if result.returncode == 0 and os.path.exists(web_compatible_path):
-            try:
-                os.remove(output_video_path)
-            except:
-                pass
-            os.rename(web_compatible_path, output_video_path)
-            logging.info(f"Successfully converted to web format")
-        else:
-            logging.warning(f"FFmpeg conversion failed: {result.stderr}")
-            # If FFmpeg fails, continue with original video - don't fail the entire analysis
-            logging.info("Continuing with original video format")
+    # --- Stage 3: Convert to web-compatible format if a video was generated ---
+    if video_generated:
+        try:
+            web_compatible_path = f"temp_{job.job_id}_web_analyzed.mp4"
+            logging.info(f"Converting to web format: {output_video_path} -> {web_compatible_path}")
             
-    except Exception as e:
-        logging.warning(f"Web format conversion failed: {e}")
-        # Continue with original video if conversion fails
-        logging.info("Continuing with original video format")
+            ffmpeg_cmd = [
+                'ffmpeg', '-y',
+                '-i', output_video_path,
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-profile:v', 'baseline',
+                '-level', '3.0',
+                '-pix_fmt', 'yuv420p',
+                '-crf', '28',
+                '-movflags', '+faststart',
+                web_compatible_path
+            ]
+            
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=90)
+            
+            if result.returncode == 0 and os.path.exists(web_compatible_path):
+                try:
+                    os.remove(output_video_path)
+                except:
+                    pass
+                os.rename(web_compatible_path, output_video_path)
+                logging.info(f"Successfully converted to web format")
+            else:
+                logging.warning(f"FFmpeg web conversion failed: {result.stderr}. Using original video.")
+                
+        except Exception as e:
+            logging.warning(f"Web format conversion failed: {e}. Using original video.")
+    else:
+        logging.warning("Skipping web conversion because no video was generated.")
+        output_video_path = None # Ensure no broken video path is returned
 
     # Generate PDF with error handling
     improvement_plan_pdf = None
@@ -928,19 +941,20 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         logging.warning(f"PDF generation failed: {e}")
 
     # Move final video to results folder with correct naming
-    try:
-        os.makedirs('results', exist_ok=True)
-        final_video_path = os.path.join('results', f"{job.job_id}_analyzed.mp4")
-        if os.path.exists(output_video_path):
+    if output_video_path and os.path.exists(output_video_path):
+        try:
+            os.makedirs('results', exist_ok=True)
+            final_video_path = os.path.join('results', f"{job.job_id}_analyzed.mp4")
             shutil.move(output_video_path, final_video_path)
             output_video_path = final_video_path
             logging.info(f"Moved final video to: {final_video_path}")
-        else:
-            logging.warning(f"Output video not found at: {output_video_path}")
-    except Exception as e:
-        logging.error(f"Failed to move video to results folder: {e}")
+        except Exception as e:
+            logging.error(f"Failed to move video to results folder: {e}")
+    else:
+        logging.info("No final video to move.")
+        output_video_path = None
 
-    logging.info(f"Analysis completed successfully for job {job.job_id}")
+    logging.info(f"Analysis completed for job {job.job_id}")
     
     # Return comprehensive results
     return {
