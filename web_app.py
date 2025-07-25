@@ -77,7 +77,15 @@ def load_job_from_file(job_id):
 def save_results_to_file(job_id, results_data):
     """Save results data to file for persistence"""
     try:
-        results_file = os.path.join('jobs', f"{job_id}_results.json")
+        # Ensure jobs directory exists
+        jobs_dir = 'jobs'
+        if not os.path.exists(jobs_dir):
+            os.makedirs(jobs_dir)
+            print(f"DEBUG: Created jobs directory: {jobs_dir}")
+        
+        results_file = os.path.join(jobs_dir, f"{job_id}_results.json")
+        print(f"DEBUG: Attempting to save results to: {results_file}")
+        
         serializable_data = results_data.copy()
         
         # Convert datetime objects to ISO strings
@@ -103,15 +111,39 @@ def save_results_to_file(job_id, results_data):
         
         with open(results_file, 'w') as f:
             json.dump(serializable_data, f, indent=2)
-        print(f"DEBUG: Saved results {job_id} to file")
+        
+        print(f"DEBUG: Successfully saved results {job_id} to file")
+        print(f"DEBUG: File size: {os.path.getsize(results_file)} bytes")
+        
+        # Verify the file was written correctly
+        if os.path.exists(results_file):
+            try:
+                with open(results_file, 'r') as f:
+                    test_load = json.load(f)
+                print(f"DEBUG: Results file verification successful")
+            except Exception as e:
+                print(f"DEBUG: Results file verification failed: {e}")
+        
     except Exception as e:
         print(f"DEBUG: Failed to save results {job_id}: {e}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
 
 def load_results_from_file(job_id):
     """Load results data from file"""
     try:
         results_file = os.path.join('jobs', f"{job_id}_results.json")
+        print(f"DEBUG: Attempting to load results from: {results_file}")
+        print(f"DEBUG: Results file exists: {os.path.exists(results_file)}")
+        
         if os.path.exists(results_file):
+            print(f"DEBUG: File size: {os.path.getsize(results_file)} bytes")
+            
+            with open(results_file, 'r') as f:
+                content = f.read()
+                print(f"DEBUG: File content length: {len(content)}")
+                
+            # Reset file pointer and load JSON
             with open(results_file, 'r') as f:
                 results_data = json.load(f)
             
@@ -119,10 +151,23 @@ def load_results_from_file(job_id):
             if 'processed_at' in results_data:
                 results_data['processed_at'] = datetime.fromisoformat(results_data['processed_at'])
             
-            print(f"DEBUG: Loaded results {job_id} from file")
+            print(f"DEBUG: Successfully loaded results {job_id} from file")
+            print(f"DEBUG: Results keys: {list(results_data.keys())}")
             return results_data
+        else:
+            print(f"DEBUG: Results file does not exist: {results_file}")
+            # List files in jobs directory to see what's there
+            jobs_dir = 'jobs'
+            if os.path.exists(jobs_dir):
+                files_in_jobs = os.listdir(jobs_dir)
+                print(f"DEBUG: Files in jobs directory: {files_in_jobs}")
+            else:
+                print(f"DEBUG: Jobs directory does not exist: {jobs_dir}")
+                
     except Exception as e:
         print(f"DEBUG: Failed to load results {job_id}: {e}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
     return None
 
 def load_all_jobs():
