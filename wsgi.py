@@ -10,6 +10,15 @@ import sys
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))
 
+from web_app import app as application
+
+if __name__ == "__main__":
+    # For local development, you can run this file directly
+    # In production, gunicorn will import the 'application' object
+    application.run(host='0.0.0.0', port=8080, debug=True)
+
+sys.path.insert(0, os.path.dirname(__file__))
+
 # Import the Flask application
 from web_app import app
 
