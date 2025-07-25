@@ -585,8 +585,9 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         }
     
     # Fix video orientation if needed
+    rotation = 0
     try:
-        fix_video_orientation(local_video_path)
+        rotation = fix_video_orientation(local_video_path)
         logging.info(f"Video orientation check completed")
     except Exception as e:
         logging.warning(f"Video orientation fix failed: {e}")
