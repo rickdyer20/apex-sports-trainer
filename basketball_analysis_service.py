@@ -473,8 +473,8 @@ def wrap_text(text, max_chars):
 
 # --- Core Processing Logic (within the Pose Estimation & Analysis Service) ---
 
-def fix_video_orientation(video_path):
-    """Fix video orientation based on metadata rotation info. Returns rotation angle if corrected, else 0."""
+def detect_video_rotation(video_path):
+    """Detect video rotation metadata without modifying the file. Returns rotation angle."""
     rotation = 0
     try:
         import subprocess
@@ -508,44 +508,11 @@ def fix_video_orientation(video_path):
                         except (ValueError, TypeError):
                             rotation = 0
                     break
-            
-            # If rotation detected, fix it
-            if rotation in [90, 180, 270]:
-                corrected_path = video_path.replace('.mp4', '_corrected.mp4')
-                
-                # Determine transpose filter based on rotation
-                if rotation == 90:
-                    transpose_filter = 'transpose=1'  # 90° clockwise
-                elif rotation == 180:
-                    transpose_filter = 'transpose=2,transpose=2'  # 180°
-                elif rotation == 270:
-                    transpose_filter = 'transpose=2'  # 90° counter-clockwise
-                
-                fix_cmd = [
-                    'ffmpeg', '-y',
-                    '-i', video_path,
-                    '-vf', transpose_filter,
-                    '-c:a', 'copy',  # Copy audio without re-encoding
-                    '-metadata:s:v:0', 'rotate=0',  # Remove rotation metadata
-                    corrected_path
-                ]
-                
-                fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
-                
-                if fix_result.returncode == 0 and os.path.exists(corrected_path):
-                    # Replace original with corrected version
-                    os.remove(video_path)
-                    os.rename(corrected_path, video_path)
-                    logging.info(f"Fixed video orientation (rotated {rotation}°): {video_path}")
-                    return rotation
-                else:
-                    logging.warning(f"Failed to fix video orientation: {fix_result.stderr}")
-                    return 0
                         
     except Exception as e:
-        logging.warning(f"Could not check/fix video orientation: {e}")
+        logging.warning(f"Could not detect video rotation: {e}")
     
-    return 0
+    return rotation
 
 def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     """
@@ -584,13 +551,13 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             'error': f'Failed to download video: {str(e)}'
         }
     
-    # Fix video orientation if needed
+    # Detect video rotation without modifying the file
     rotation = 0
     try:
-        rotation = fix_video_orientation(local_video_path)
-        logging.info(f"Video orientation check completed")
+        rotation = detect_video_rotation(local_video_path)
+        logging.info(f"Video rotation detected: {rotation} degrees")
     except Exception as e:
-        logging.warning(f"Video orientation fix failed: {e}")
+        logging.warning(f"Video rotation detection failed: {e}")
 
     # Initialize video capture with error handling
     cap = None
@@ -607,16 +574,17 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
-        # If rotation was detected, we need to swap width and height for the video writer
+        # For the video writer, we need to swap dimensions if video will be rotated 90° or 270°
+        output_width, output_height = width, height
         if rotation in [90, 270]:
-            logging.info(f"Swapping width and height for video writer due to {rotation} degree rotation.")
-            width, height = height, width
+            logging.info(f"Swapping output dimensions for video writer due to {rotation} degree rotation.")
+            output_width, output_height = height, width
 
-        logging.info(f"Video properties - FPS: {fps}, Size: {width}x{height}, Frames: {total_frames}")
+        logging.info(f"Video properties - FPS: {fps}, Input size: {width}x{height}, Output size: {output_width}x{output_height}, Frames: {total_frames}")
         
         # Validate video properties
         if fps <= 0 or width <= 0 or height <= 0 or total_frames <= 0:
-            logging.error(f"Invalid video properties: FPS={fps}, Size={width}x{height}, Frames={total_frames}")
+            logging.error(f"Invalid video properties: FPS={fps}, Input size={width}x{height}, Frames={total_frames}")
             cap.release()
             return {
                 'error': 'Invalid video format or corrupted video file'
@@ -661,6 +629,14 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 if current_frame_idx % 25 == 0:
                     elapsed = time.time() - start_time
                     logging.info(f"Processing frame {current_frame_idx}/{max_frames} ({elapsed:.1f}s elapsed)")
+                
+                # Apply rotation to frame if needed based on metadata
+                if rotation == 90:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+                elif rotation == 180:
+                    frame = cv2.rotate(frame, cv2.ROTATE_180)
+                elif rotation == 270:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                     
                 # Convert the BGR image to RGB
                 image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -810,7 +786,7 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         # --- Stage 1: Attempt to write video with cv2.VideoWriter (simplified for memory efficiency) ---
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         reduced_fps = max(fps / 8, 3)  # Further reduce FPS to save memory and processing time
-        out = cv2.VideoWriter(output_video_path, fourcc, reduced_fps, (width, height))
+        out = cv2.VideoWriter(output_video_path, fourcc, reduced_fps, (output_width, output_height))
         
         if not out.isOpened():
             logging.warning("cv2.VideoWriter failed to open with 'mp4v'. Will fallback to ffmpeg.")
@@ -834,6 +810,14 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             if current_frame_idx_output % frame_skip != 0:
                 current_frame_idx_output += 1
                 continue
+
+            # Apply rotation to output frame if needed
+            if rotation == 90:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            elif rotation == 180:
+                frame = cv2.rotate(frame, cv2.ROTATE_180)
+            elif rotation == 270:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
             # --- Apply overlays to the frame ---
             try:

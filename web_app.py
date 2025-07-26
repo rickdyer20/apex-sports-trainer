@@ -209,15 +209,15 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def ensure_web_compatible_video(video_path):
-    """Ensure video is web-compatible, convert if needed, and fix orientation"""
+    """Ensure video is web-compatible, convert if needed. Rotation is handled during analysis."""
     if not os.path.exists(video_path):
         return video_path
     
-    # Check if video needs conversion or orientation fix
+    # Check if video needs conversion (skip rotation handling since it's done during analysis)
     try:
         import subprocess
         
-        # Get video codec info and rotation metadata
+        # Get video codec info
         probe_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
         result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
         
@@ -226,9 +226,8 @@ def ensure_web_compatible_video(video_path):
             probe_data = json.loads(result.stdout)
             
             needs_conversion = False
-            rotation = 0
             
-            # Check if video stream uses web-compatible codec and check rotation
+            # Check if video stream uses web-compatible codec
             for stream in probe_data.get('streams', []):
                 if stream.get('codec_type') == 'video':
                     codec = stream.get('codec_name', '')
@@ -236,27 +235,9 @@ def ensure_web_compatible_video(video_path):
                     # If not H.264, needs conversion
                     if codec != 'h264':
                         needs_conversion = True
-                    
-                    # Check for rotation metadata
-                    side_data = stream.get('side_data_list', [])
-                    for data in side_data:
-                        if data.get('side_data_type') == 'Display Matrix':
-                            rotation_str = data.get('rotation', '0')
-                            try:
-                                rotation = int(float(rotation_str))
-                            except (ValueError, TypeError):
-                                rotation = 0
-                    
-                    # Also check tags for rotation
-                    tags = stream.get('tags', {})
-                    if 'rotate' in tags:
-                        try:
-                            rotation = int(tags['rotate'])
-                        except (ValueError, TypeError):
-                            rotation = 0
                     break
             
-            # Convert to web-compatible format only if needed (rotation handled during analysis)
+            # Convert to web-compatible format only if needed
             if needs_conversion:
                 web_path = video_path.replace('.mp4', '_web.mp4')
                 
@@ -280,13 +261,13 @@ def ensure_web_compatible_video(video_path):
                     # Replace original with converted version
                     os.remove(video_path)
                     os.rename(web_path, video_path)
-                    print(f"Converted video to web format and fixed orientation: {video_path}")
+                    print(f"Converted video to web format: {video_path}")
                     return video_path
                 else:
                     print(f"Video conversion failed: {convert_result.stderr}")
                     
     except Exception as e:
-        print(f"Video compatibility check/fix failed: {e}")
+        print(f"Video compatibility check failed: {e}")
     
     return video_path
 
