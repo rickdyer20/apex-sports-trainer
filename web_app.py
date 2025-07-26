@@ -256,11 +256,11 @@ def ensure_web_compatible_video(video_path):
                             rotation = 0
                     break
             
-            # Convert to web-compatible format and fix orientation if needed
-            if needs_conversion or (rotation != 0 and rotation % 90 == 0):
+            # Convert to web-compatible format only if needed (rotation handled during analysis)
+            if needs_conversion:
                 web_path = video_path.replace('.mp4', '_web.mp4')
                 
-                # Build FFmpeg command
+                # Build FFmpeg command for web compatibility only
                 convert_cmd = [
                     'ffmpeg', '-y',
                     '-i', video_path,
@@ -270,22 +270,9 @@ def ensure_web_compatible_video(video_path):
                     '-pix_fmt', 'yuv420p',
                     '-movflags', '+faststart',
                     '-preset', 'fast',
-                    '-crf', '23'
+                    '-crf', '23',
+                    web_path
                 ]
-                
-                # Add rotation fix if needed
-                if rotation != 0 and rotation % 90 == 0:
-                    if rotation == 90:
-                        convert_cmd.extend(['-vf', 'transpose=1'])  # 90° clockwise
-                    elif rotation == 180:
-                        convert_cmd.extend(['-vf', 'transpose=2,transpose=2'])  # 180°
-                    elif rotation == 270:
-                        convert_cmd.extend(['-vf', 'transpose=2'])  # 90° counter-clockwise
-                    
-                    # Remove rotation metadata
-                    convert_cmd.extend(['-metadata:s:v:0', 'rotate=0'])
-                
-                convert_cmd.append(web_path)
                 
                 convert_result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=120)
                 
