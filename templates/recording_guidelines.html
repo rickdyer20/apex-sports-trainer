@@ -1,0 +1,257 @@
+<!-- Enhanced Upload Interface with Recording Guidelines -->
+<style>
+.recording-guidelines {
+    margin-bottom: 2rem;
+}
+
+.orientation-demo {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.landscape-demo i {
+    transform: rotate(90deg);
+    color: #28a745;
+}
+
+.portrait-demo i {
+    color: #dc3545;
+}
+
+.checklist-item {
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    background: #f8f9fa;
+    border-left: 4px solid #007bff;
+    border-radius: 0.25rem;
+}
+
+.guideline-card {
+    transition: transform 0.2s;
+}
+
+.guideline-card:hover {
+    transform: translateY(-2px);
+}
+
+.quick-tips {
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    color: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.angle-selector {
+    border: 2px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.angle-selector:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.angle-selector.selected {
+    border-color: #007bff;
+    background-color: #e3f2fd;
+}
+</style>
+
+<!-- Recording Guidelines Section -->
+<section class="py-4 bg-light">
+    <div class="container">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold text-primary">📱 Record Your Video Correctly</h2>
+            <p class="text-muted">Follow these guidelines for the most accurate analysis</p>
+        </div>
+
+        <!-- Quick Tips Banner -->
+        <div class="quick-tips text-center mb-4">
+            <h4 class="mb-3"><i class="fas fa-lightbulb me-2"></i>Quick Start Guide</h4>
+            <div class="row">
+                <div class="col-md-4 mb-2">
+                    <i class="fas fa-mobile-alt fa-2x mb-2"></i>
+                    <div>Hold phone sideways</div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <i class="fas fa-eye fa-2x mb-2"></i>
+                    <div>Stand to the side</div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <i class="fas fa-expand fa-2x mb-2"></i>
+                    <div>Show full body</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Orientation Guide -->
+            <div class="col-lg-6 mb-4">
+                <div class="card guideline-card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-mobile-alt me-2"></i>Phone Orientation</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="orientation-demo landscape-demo mb-2">
+                                        <i class="fas fa-mobile-alt fa-4x"></i>
+                                    </div>
+                                    <div class="badge bg-success">✓ CORRECT</div>
+                                    <p class="small mt-2 text-success">Landscape Mode<br>Full field of view</p>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="orientation-demo portrait-demo mb-2">
+                                        <i class="fas fa-mobile-alt fa-4x"></i>
+                                    </div>
+                                    <div class="badge bg-danger">✗ INCORRECT</div>
+                                    <p class="small mt-2 text-danger">Portrait Mode<br>Limited view</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-3">
+                            <small><strong>Why landscape?</strong> Our AI needs to see your entire shooting form. Portrait mode cuts off important details.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera Position Guide -->
+            <div class="col-lg-6 mb-4">
+                <div class="card guideline-card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-camera me-2"></i>Camera Position</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>Best Camera Angles:</h6>
+                            
+                            <div class="angle-selector selected mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-star text-warning me-2"></i>
+                                    <div>
+                                        <strong>Side View (Recommended)</strong>
+                                        <div class="small text-muted">Stand 8-10 feet to the shooter's side</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="angle-selector mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-eye me-2 text-primary"></i>
+                                    <div>
+                                        <strong>Front View</strong>
+                                        <div class="small text-muted">Good for hand mechanics</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="angle-selector">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-drafting-compass me-2 text-info"></i>
+                                    <div>
+                                        <strong>45-Degree Angle</strong>
+                                        <div class="small text-muted">Balanced perspective</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <small><strong>Important:</strong> Include the entire body from feet to fingertips, plus the basketball hoop.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recording Checklist -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Pre-Recording Checklist</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="checklist-item">📱 Phone held horizontally (landscape)</div>
+                        <div class="checklist-item">👁️ Standing to the side (8-10 feet away)</div>
+                        <div class="checklist-item">🎯 Entire body visible in frame</div>
+                        <div class="checklist-item">🏀 Basketball hoop is visible</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="checklist-item">💡 Good lighting on the shooter</div>
+                        <div class="checklist-item">📐 Camera held level and steady</div>
+                        <div class="checklist-item">⏱️ Ready to start before the shot</div>
+                        <div class="checklist-item">🎥 Highest video quality selected</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Common Mistakes -->
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Avoid These Common Mistakes</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="text-danger">
+                            <i class="fas fa-times-circle me-1"></i>
+                            <strong>Portrait Mode</strong>
+                        </div>
+                        <small class="text-muted">Limits field of view</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-danger">
+                            <i class="fas fa-times-circle me-1"></i>
+                            <strong>Following the Ball</strong>
+                        </div>
+                        <small class="text-muted">Keep focus on shooter</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-danger">
+                            <i class="fas fa-times-circle me-1"></i>
+                            <strong>Too Close/Far</strong>
+                        </div>
+                        <small class="text-muted">8-10 feet is optimal</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- JavaScript for Interactive Elements -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Angle selector interactivity
+    const angleSelectors = document.querySelectorAll('.angle-selector');
+    angleSelectors.forEach(selector => {
+        selector.addEventListener('click', function() {
+            angleSelectors.forEach(s => s.classList.remove('selected'));
+            this.classList.add('selected');
+        });
+    });
+    
+    // Show guidelines toggle
+    const showGuidelinesBtn = document.getElementById('showGuidelines');
+    const guidelinesSection = document.getElementById('recordingGuidelines');
+    
+    if (showGuidelinesBtn && guidelinesSection) {
+        showGuidelinesBtn.addEventListener('click', function() {
+            guidelinesSection.style.display = guidelinesSection.style.display === 'none' ? 'block' : 'none';
+            this.textContent = guidelinesSection.style.display === 'none' ? 'Show Recording Guidelines' : 'Hide Recording Guidelines';
+        });
+    }
+});
+</script>

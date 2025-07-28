@@ -297,8 +297,8 @@ class BasketballAnalysisPDFGenerator:
             # Flaw details table
             flaw_data = [
                 ['Severity Level:', f"{flaw['severity']:.1f}/100"],
-                ['Shot Phase:', flaw['phase']],
-                ['Frame Location:', f"Frame {flaw['frame_number']}"],
+                ['Shot Phase:', flaw.get('phase', 'Overall Motion')],
+                ['Frame Location:', f"Frame {flaw.get('frame_number', 'N/A')}"],
                 ['Category:', self._get_flaw_category(flaw['flaw_type'])]
             ]
             
@@ -317,7 +317,8 @@ class BasketballAnalysisPDFGenerator:
             
             # Problem description
             content.append(Paragraph("<b>What's Happening:</b>", self.heading3_style))
-            content.append(Paragraph(flaw['plain_language'], self.body_style))
+            plain_language = flaw.get('plain_language') or flaw.get('description', 'Issue detected with shooting form')
+            content.append(Paragraph(plain_language, self.body_style))
             content.append(Spacer(1, 8))
             
             # Impact on shooting
@@ -334,7 +335,8 @@ class BasketballAnalysisPDFGenerator:
             
             # Correction strategy
             content.append(Paragraph("<b>Correction Strategy:</b>", self.heading3_style))
-            content.append(Paragraph(flaw['coaching_tip'], self.body_style))
+            coaching_tip = flaw.get('coaching_tip') or flaw.get('remedy_tip', 'Focus on correcting this aspect of your shooting form')
+            content.append(Paragraph(coaching_tip, self.body_style))
             content.append(Spacer(1, 15))
             
         return content
@@ -716,7 +718,7 @@ class BasketballAnalysisPDFGenerator:
     # Helper methods for generating drill and flaw-specific content
     
     def _get_flaw_category(self, flaw_type):
-        """Get category classification for flaw"""
+        """Get category classification for flaw"""  
         categories = {
             'elbow_flare': 'Upper Body Mechanics',
             'insufficient_knee_bend': 'Lower Body Foundation',
@@ -725,7 +727,11 @@ class BasketballAnalysisPDFGenerator:
             'guide_hand_interference': 'Hand Coordination',
             'balance_issues': 'Base & Stability',
             'rushing_shot': 'Timing & Rhythm',
-            'inconsistent_release_point': 'Release Consistency'
+            'inconsistent_release_point': 'Release Consistency',
+            'shot_timing_inefficient': 'Timing & Rhythm',
+            'guide_hand_under_ball': 'Hand Coordination',
+            'guide_hand_on_top': 'Hand Coordination',
+            'shot_lacks_fluidity': 'Motion Mechanics'
         }
         return categories.get(flaw_type, 'General Mechanics')
 
@@ -739,7 +745,11 @@ class BasketballAnalysisPDFGenerator:
             'guide_hand_interference': 'Creates sideways rotation on the ball and reduces accuracy. Often causes shots to miss left or right rather than short or long.',
             'balance_issues': 'Affects overall shooting consistency and makes it difficult to shoot accurately under pressure or when fatigued.',
             'rushing_shot': 'Reduces accuracy and makes it difficult to develop consistent shooting rhythm. Often leads to poor shot selection in games.',
-            'inconsistent_release_point': 'Creates variable shot arc and makes it difficult to develop reliable muscle memory. Affects shooting under defensive pressure.'
+            'inconsistent_release_point': 'Creates variable shot arc and makes it difficult to develop reliable muscle memory. Affects shooting under defensive pressure.',
+            'shot_timing_inefficient': 'Disrupts the natural flow of energy from legs to shooting hand, reducing power efficiency and accuracy. Makes it harder to shoot consistently under game pressure.',
+            'guide_hand_under_ball': 'Creates unwanted lateral force that pushes shots offline. Interferes with natural ball rotation and makes shots miss left or right unpredictably.',
+            'guide_hand_on_top': 'Interferes with proper ball release and creates downward pressure that disrupts optimal arc. Can cause shots to come up short and reduces shooting consistency.',
+            'shot_lacks_fluidity': 'Jerky, disconnected movements reduce shooting consistency and accuracy. Makes it difficult to develop reliable muscle memory and affects performance under pressure.'
         }
         return impacts.get(flaw_type, 'Impacts overall shooting consistency and accuracy.')
 
@@ -753,7 +763,11 @@ class BasketballAnalysisPDFGenerator:
             'guide_hand_interference': 'The non-shooting hand should stabilize the ball during the shooting motion but not contribute force at release. When it pushes or deflects the ball, it creates unwanted lateral forces that disrupt the intended trajectory.',
             'balance_issues': 'Proper balance ensures consistent base of support for the shooting motion. Poor balance disrupts the kinetic chain and makes it difficult to generate consistent force vectors, leading to variable shot outcomes.',
             'rushing_shot': 'Rushing disrupts the natural timing of the kinetic chain, where energy should flow smoothly from legs through core to shooting arm. When rushed, this sequence becomes compressed and less efficient.',
-            'inconsistent_release_point': 'Release point consistency is crucial for reproducible shot arc and trajectory. Variations in release point indicate problems with shooting rhythm, balance, or upper body mechanics.'
+            'inconsistent_release_point': 'Release point consistency is crucial for reproducible shot arc and trajectory. Variations in release point indicate problems with shooting rhythm, balance, or upper body mechanics.',
+            'shot_timing_inefficient': 'Inefficient timing breaks the kinetic chain sequence where power should transfer smoothly from ground through legs, core, and finally to the shooting arm. When timing is off, each segment works independently rather than building upon the previous one, resulting in reduced power and accuracy.',
+            'guide_hand_under_ball': 'When the guide hand is positioned under the ball rather than on the side, it creates an unstable base that can apply unintended force during the shooting motion. This disrupts the single-axis rotation needed for accurate shooting and introduces variables that make consistent shot placement difficult.',
+            'guide_hand_on_top': 'When the guide hand is positioned on top of the ball, it can interfere with the natural release motion and create downward pressure that affects shot arc. This position makes it difficult to achieve proper ball rotation and can cause the guide hand to interfere with the release timing.',
+            'shot_lacks_fluidity': 'Fluid motion ensures that momentum builds continuously through the kinetic chain. When the shooting motion has stops, starts, or jerky movements, it breaks this momentum transfer and forces individual body segments to work harder to compensate, reducing both power and consistency.'
         }
         return explanations.get(flaw_type, 'This flaw affects the biomechanical efficiency of the shooting motion.')
 
@@ -767,7 +781,11 @@ class BasketballAnalysisPDFGenerator:
             'guide_hand_interference': 'Guide hand separation timing and positioning',
             'balance_issues': 'Center of gravity stability and landing position',
             'rushing_shot': 'Shooting motion timing and rhythm consistency',
-            'inconsistent_release_point': 'Release point height and position variance'
+            'inconsistent_release_point': 'Release point height and position variance',
+            'shot_timing_inefficient': 'Timing intervals between shot phases (catch-dip-release)',
+            'guide_hand_under_ball': 'Guide hand position relative to ball centerline',
+            'guide_hand_on_top': 'Guide hand positioning relative to ball surface contact point',
+            'shot_lacks_fluidity': 'Motion smoothness score and transition consistency'
         }
         return measurements.get(flaw_type, 'Form consistency and shooting accuracy')
 
@@ -781,7 +799,11 @@ class BasketballAnalysisPDFGenerator:
             'guide_hand_interference': 'Guide hand falls away naturally without affecting ball trajectory',
             'balance_issues': 'Consistent landing in same position as takeoff with stable base',
             'rushing_shot': 'Smooth, rhythmic shooting motion with consistent timing',
-            'inconsistent_release_point': 'Release from same position relative to head and shoulders every time'
+            'inconsistent_release_point': 'Release from same position relative to head and shoulders every time',
+            'shot_timing_inefficient': 'Smooth rhythm with consistent timing between catch, dip, and release phases',
+            'guide_hand_under_ball': 'Guide hand positioned on side of ball, naturally falling away at release',
+            'guide_hand_on_top': 'Guide hand positioned on side of ball without downward pressure on release',
+            'shot_lacks_fluidity': 'Continuous, smooth motion with no jerky movements or unnatural pauses'
         }
         return indicators.get(flaw_type, 'Improved consistency and shooting accuracy')
 
@@ -877,6 +899,545 @@ class BasketballAnalysisPDFGenerator:
                         'Power flows from legs through core to shooting arm'
                     ]
                 }
+            ],
+            'shot_timing_inefficient': [
+                {
+                    'name': 'Metronome Rhythm Shooting',
+                    'purpose': 'Develop consistent shooting rhythm and timing',
+                    'equipment': 'Metronome or rhythm app, basketball, basket',
+                    'duration': '15-20 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '75-100 shots with rhythm',
+                    'instructions': [
+                        'Set metronome to 60 BPM (beats per minute)',
+                        'Practice catch-dip-shoot sequence to the beat',
+                        'Beat 1: Catch and secure ball, Beat 2: Dip into shooting position',
+                        'Beat 3: Begin upward shooting motion, Beat 4: Release ball',
+                        'Gradually increase tempo as rhythm becomes natural',
+                        'Focus on smooth transitions between each phase'
+                    ],
+                    'key_points': [
+                        'Consistency is more important than speed initially',
+                        'Each phase should flow smoothly into the next',
+                        'Don\'t rush - let the natural rhythm develop'
+                    ],
+                    'video_reference': 'NBA Skills: Shooting Rhythm Development'
+                },
+                {
+                    'name': 'One-Motion Shooting Drill',
+                    'purpose': 'Eliminate pauses and develop fluid shot timing',
+                    'equipment': 'Basketball, basket',
+                    'duration': '12-15 minutes',
+                    'difficulty': 'Beginner to Intermediate',
+                    'reps': '50-75 shots',
+                    'instructions': [
+                        'Start in triple threat position with ball at hip level',
+                        'Practice bringing ball up in one smooth motion to release',
+                        'No pause at the set point - continuous fluid motion',
+                        'Focus on coordinating footwork with upper body movement',
+                        'Ball should never stop moving once the shot begins',
+                        'Start close to basket and gradually increase distance'
+                    ],
+                    'key_points': [
+                        'Eliminate any hitches or pauses in your shot',
+                        'Power comes from smooth coordination, not rushed movement',
+                        'Practice until the motion feels completely natural'
+                    ]
+                }
+            ],
+            'guide_hand_under_ball': [
+                {
+                    'name': 'Guide Hand Side Positioning Drill',
+                    'purpose': 'Train proper guide hand placement on side of ball',
+                    'equipment': 'Basketball, basket, optional tennis ball',
+                    'duration': '10-15 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '40-60 shots',
+                    'instructions': [
+                        'Hold ball with shooting hand on back, guide hand on side',
+                        'Guide hand thumb should point toward shooting shoulder',
+                        'Practice shooting motion with exaggerated guide hand position',
+                        'Focus on guide hand falling away naturally at release',
+                        'Check that guide hand never pushes or influences ball direction',
+                        'Use mirror to verify proper hand positioning'
+                    ],
+                    'key_points': [
+                        'Guide hand is passive - it supports, never pushes',
+                        'Think "passenger, not driver" for your guide hand',
+                        'Hand should naturally fall away at release'
+                    ],
+                    'video_reference': 'Basketball Fundamentals: Proper Hand Placement'
+                },
+                {
+                    'name': 'Tennis Ball Guide Hand Drill',
+                    'purpose': 'Eliminate guide hand interference with ball trajectory',
+                    'equipment': 'Basketball, tennis ball, basket',
+                    'duration': '10 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '30-50 shots',
+                    'instructions': [
+                        'Hold tennis ball in guide hand while shooting basketball',
+                        'Tennis ball prevents guide hand from getting under basketball',
+                        'Practice normal shooting motion while keeping tennis ball secure',
+                        'Focus on shooting hand doing all the work',
+                        'Guide hand with tennis ball should not affect shot trajectory',
+                        'Progress to shooting without tennis ball, maintaining same feeling'
+                    ],
+                    'key_points': [
+                        'This drill forces proper guide hand positioning',
+                        'Shooting hand must do all directional work',
+                        'Maintain same passive guide hand feel without tennis ball'
+                    ]
+                },
+                {
+                    'name': 'One-Handed Shooting Progression',
+                    'purpose': 'Develop shooting hand independence and proper guide hand role',
+                    'equipment': 'Basketball, basket',
+                    'duration': '8-12 minutes',
+                    'difficulty': 'Intermediate to Advanced',
+                    'reps': '25-40 one-handed shots, then 25-40 two-handed',
+                    'instructions': [
+                        'Start very close to basket (3-4 feet away)',
+                        'Shoot with shooting hand only, guide hand behind back',
+                        'Focus on perfect form and consistent arc',
+                        'Make 10 one-handed shots before adding guide hand',
+                        'When adding guide hand, use only for balance - no pushing',
+                        'Compare feel between one-handed and two-handed shots'
+                    ],
+                    'key_points': [
+                        'This teaches true shooting hand control',
+                        'Guide hand addition should not change shot trajectory',
+                        'Builds confidence in shooting hand mechanics'
+                    ]
+                }
+            ],
+            'guide_hand_on_top': [
+                {
+                    'name': 'Guide Hand Side Placement Drill',
+                    'purpose': 'Train proper guide hand positioning on side, not top of ball',
+                    'equipment': 'Basketball, basket, wall or mirror',
+                    'duration': '10-15 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '40-60 shots',
+                    'instructions': [
+                        'Hold ball with shooting hand on back center, guide hand on side',
+                        'Guide hand should contact ball at its widest point, not on top',
+                        'Check in mirror - guide hand thumb points toward shooting shoulder',
+                        'Practice catching and immediately placing guide hand properly',
+                        'Focus on guide hand supporting, not controlling ball',
+                        'Shoot with emphasis on guide hand falling naturally away'
+                    ],
+                    'key_points': [
+                        'Guide hand provides balance, not force',
+                        'Proper position allows natural release motion',
+                        'Guide hand should never be above ball centerline'
+                    ],
+                    'video_reference': 'Basketball Form: Proper Hand Positioning'
+                },
+                {
+                    'name': 'Wall Form Shooting (Guide Hand Focus)',
+                    'purpose': 'Develop muscle memory for proper guide hand placement',
+                    'equipment': 'Basketball, wall',
+                    'duration': '8-12 minutes',
+                    'difficulty': 'Beginner to Intermediate',
+                    'reps': '50-75 wall shots',
+                    'instructions': [
+                        'Stand 12 inches from wall, practice shooting motion',
+                        'Focus entirely on guide hand staying to side of ball',
+                        'Ball should not hit wall if guide hand positioned correctly on side',
+                        'Practice catch-and-shoot motion with proper hand placement',
+                        'Gradually increase speed while maintaining side positioning',
+                        'Check that guide hand never covers top of ball'
+                    ],
+                    'key_points': [
+                        'Wall provides immediate feedback on hand position',
+                        'Forces proper guide hand discipline',
+                        'Builds automatic correct positioning'
+                    ]
+                },
+                {
+                    'name': 'Guide Hand Awareness Shooting',
+                    'purpose': 'Develop conscious control of guide hand positioning',
+                    'equipment': 'Basketball, basket',
+                    'duration': '10-15 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '30-50 shots',
+                    'instructions': [
+                        'Before each shot, deliberately place guide hand on side of ball',
+                        'Pause and check hand position before beginning shooting motion',
+                        'Say "side position" out loud before each shot',
+                        'Practice from various angles to maintain consistent positioning',
+                        'Focus on guide hand never pressing downward on ball',
+                        'End each rep by checking where guide hand finishes'
+                    ],
+                    'key_points': [
+                        'Conscious awareness builds subconscious habit',
+                        'Verbal cue reinforces proper positioning',
+                        'Consistent practice from multiple positions'
+                    ]
+                }
+            ],
+            'shot_lacks_fluidity': [
+                {
+                    'name': 'Slow Motion Shooting Development',
+                    'purpose': 'Develop smooth, continuous shooting motion',
+                    'equipment': 'Basketball, basket',
+                    'duration': '15-20 minutes',
+                    'difficulty': 'Beginner to Intermediate',
+                    'reps': '50-75 slow motion shots',
+                    'instructions': [
+                        'Practice entire shooting motion in exaggerated slow motion',
+                        'Take 4-5 seconds for complete shooting motion',
+                        'Focus on smooth transitions between each phase',
+                        'Ensure no jerky or abrupt movements anywhere in motion',
+                        'Gradually increase speed while maintaining smoothness',
+                        'Every part of body should move in coordinated sequence'
+                    ],
+                    'key_points': [
+                        'Smoothness is more important than speed',
+                        'Each body part should flow naturally into next movement',
+                        'No rushed or jerky transitions allowed'
+                    ],
+                    'video_reference': 'NBA Training: Fluid Shooting Motion'
+                },
+                {
+                    'name': 'Water Shooting Visualization',
+                    'purpose': 'Develop mental model of fluid shooting motion',
+                    'equipment': 'Basketball, basket',
+                    'duration': '10-15 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '40-60 shots with visualization',
+                    'instructions': [
+                        'Imagine your shooting motion as water flowing upward',
+                        'Water never stops, jerks, or changes direction abruptly',
+                        'Let the "water" flow from your feet through your fingertips',
+                        'Each part of motion should connect smoothly to the next',
+                        'Practice with eyes closed first to feel the flow',
+                        'Open eyes and maintain same fluid feeling'
+                    ],
+                    'key_points': [
+                        'Mental imagery helps develop muscle memory',
+                        'Focus on continuous energy flow through your body',
+                        'Eliminate any "stops" or "starts" in your motion'
+                    ]
+                },
+                {
+                    'name': 'Rhythm Coordination Drill',
+                    'purpose': 'Synchronize all body parts for fluid shooting motion',
+                    'equipment': 'Basketball, basket',
+                    'duration': '12-18 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '60-80 shots focusing on coordination',
+                    'instructions': [
+                        'Break shooting motion into three coordinated phases',
+                        'Phase 1: Feet and legs initiate (bend knees, establish base)',
+                        'Phase 2: Core and torso engage (rotate and lift)',
+                        'Phase 3: Arms and wrists finish (extend and snap)',
+                        'Practice each phase separately, then combine smoothly',
+                        'Count "1-2-3" rhythm until it becomes automatic',
+                        'Focus on seamless transitions between phases'
+                    ],
+                    'key_points': [
+                        'Each phase should blend smoothly into the next',
+                        'No body part should work independently',
+                        'Develop natural timing through repetition'
+                    ]
+                },
+                {
+                    'name': 'Mirror Flow Analysis',
+                    'purpose': 'Visual feedback for shooting motion smoothness',
+                    'equipment': 'Large mirror, basketball (no basket needed)',
+                    'duration': '10-12 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '30-50 form shots in mirror',
+                    'instructions': [
+                        'Stand facing large mirror in shooting position',
+                        'Practice shooting motion while watching yourself',
+                        'Identify any jerky, rushed, or unnatural movements',
+                        'Focus on making motion look smooth and professional',
+                        'Record yourself if possible for later analysis',
+                        'Practice until motion looks fluid from all angles'
+                    ],
+                    'key_points': [
+                        'Visual feedback helps identify problem areas',
+                        'Motion should look effortless and natural',
+                        'Professional shooters have smooth, repeatable form'
+                    ]
+                }
+            ],
+            'poor_wrist_snap': [
+                {
+                    'name': 'Aggressive Wrist Snap Drill',
+                    'purpose': 'Develop proper wrist snap for backspin and soft touch',
+                    'equipment': 'Basketball, basket',
+                    'duration': '12-15 minutes',
+                    'difficulty': 'Beginner to Intermediate',
+                    'reps': '50-75 shots focusing on follow-through',
+                    'instructions': [
+                        'Start close to basket (5-6 feet) with proper shooting form',
+                        'Focus entirely on aggressive wrist snap at release',
+                        'Snap wrist down so fingers point to floor after release',
+                        'Ball should have strong backspin - listen for "snap" sound',
+                        'Hold follow-through position for 2-3 seconds after release',
+                        'Gradually increase distance while maintaining aggressive snap'
+                    ],
+                    'key_points': [
+                        'Wrist snap should be aggressive and decisive',
+                        'Fingers should end pointing toward the floor',
+                        'Strong backspin creates soft shooting touch',
+                        'Practice the "reach for the cookie jar" feeling'
+                    ],
+                    'video_reference': 'NBA Skills: Follow-Through Fundamentals'
+                },
+                {
+                    'name': 'Bed Shooting Drill',
+                    'purpose': 'Isolate wrist snap without body compensation',
+                    'equipment': 'Basketball, bed or couch',
+                    'duration': '8-10 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '30-50 shots straight up',
+                    'instructions': [
+                        'Lie flat on your back on bed with knees bent',
+                        'Hold ball in proper shooting position above your chest',
+                        'Shoot ball straight up focusing only on wrist snap',
+                        'Ball should spin back to your hands with good backspin',
+                        'Exaggerate the wrist snap - really snap it down hard',
+                        'Catch ball and immediately repeat the motion'
+                    ],
+                    'key_points': [
+                        'Body cannot compensate - pure wrist action only',
+                        'Strong backspin should bring ball back to you',
+                        'Focus on the snapping sensation in your wrist'
+                    ]
+                }
+            ],
+            'guide_hand_thumb_flick': [
+                {
+                    'name': 'Guide Hand Isolation Drill',
+                    'purpose': 'Train guide hand to stay passive during follow-through',
+                    'equipment': 'Basketball, basket, optional tape',
+                    'duration': '10-12 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '40-60 shots',
+                    'instructions': [
+                        'Practice shooting with guide hand only supporting the ball',
+                        'Place tape on guide hand thumb as reminder to stay passive',
+                        'Focus on guide hand falling away naturally at release',
+                        'Guide hand should not push, flick, or influence ball direction',
+                        'Shooting hand does all the work - guide hand just balances',
+                        'Practice until guide hand movement becomes unconscious'
+                    ],
+                    'key_points': [
+                        'Guide hand should never add force to the shot',
+                        'Natural falling away motion at release',
+                        'All power and direction comes from shooting hand only'
+                    ]
+                }
+            ],
+            'excessive_knee_bend': [
+                {
+                    'name': 'Optimal Knee Bend Finding Drill',
+                    'purpose': 'Discover efficient knee bend for power without waste',
+                    'equipment': 'Basketball, basket, wall for support',
+                    'duration': '15-18 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '60-80 shots with varying knee bend',
+                    'instructions': [
+                        'Start with minimal knee bend and gradually increase',
+                        'Find the "sweet spot" where you generate good power efficiently',
+                        'Too little bend = weak shot, too much = wasted energy',
+                        'Practice shooting from optimal bend position repeatedly',
+                        'Focus on consistent, repeatable knee bend depth',
+                        'Use wall behind you to gauge consistent bend depth'
+                    ],
+                    'key_points': [
+                        'Find your personal optimal knee bend depth',
+                        'Consistency is more important than deep bend',
+                        'Efficient power generation over maximum bend'
+                    ]
+                }
+            ],
+            'poor_follow_through': [
+                {
+                    'name': 'Hold Your Follow-Through Drill',
+                    'purpose': 'Develop complete and consistent follow-through',
+                    'equipment': 'Basketball, basket',
+                    'duration': '12-15 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '50-70 shots with extended holds',
+                    'instructions': [
+                        'Shoot with proper form focusing on complete follow-through',
+                        'Hold follow-through position for 5 full seconds after release',
+                        'Wrist should be snapped down, fingers pointing at rim',
+                        'Arm should be fully extended toward the basket',
+                        'Practice until follow-through feels natural and automatic',
+                        'Gradually reduce hold time but maintain complete motion'
+                    ],
+                    'key_points': [
+                        'Complete follow-through improves accuracy and consistency',
+                        'Proper arc and backspin depend on good follow-through',
+                        'Should feel like "reaching into the cookie jar"'
+                    ]
+                }
+            ],
+            'guide_hand_interference': [
+                {
+                    'name': 'One-Hand Shooting Progression',
+                    'purpose': 'Eliminate guide hand interference through isolation',
+                    'equipment': 'Basketball, basket',
+                    'duration': '10-15 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '30-50 one-hand shots, then 30-50 two-hand shots',
+                    'instructions': [
+                        'Start close to basket shooting with shooting hand only',
+                        'Guide hand behind back or on hip - completely out of the way',
+                        'Focus on shooting hand doing all the work',
+                        'Gradually add guide hand back for balance only',
+                        'Guide hand should not push, twist, or influence ball',
+                        'Compare feel of pure one-hand vs. proper two-hand technique'
+                    ],
+                    'key_points': [
+                        'Shooting hand generates all power and direction',
+                        'Guide hand only provides balance and stability',
+                        'No interference from guide hand at any point'
+                    ]
+                }
+            ],
+            'balance_issues': [
+                {
+                    'name': 'Balance Point Shooting Drill',
+                    'purpose': 'Develop consistent shooting balance and landing',
+                    'equipment': 'Basketball, basket, tape or chalk for marking',
+                    'duration': '12-18 minutes',
+                    'difficulty': 'Beginner to Intermediate',
+                    'reps': '50-75 shots with balance focus',
+                    'instructions': [
+                        'Mark your starting foot position with tape or chalk',
+                        'Focus on landing in exactly the same spot after each shot',
+                        'Practice shooting without drifting forward, backward, or sideways',
+                        'Keep head steady and centered throughout the shot',
+                        'Start close to basket and gradually increase distance',
+                        'Check foot position after each shot - adjust if needed'
+                    ],
+                    'key_points': [
+                        'Consistent balance creates consistent shooting results',
+                        'Landing position should match starting position',
+                        'Steady head and balanced base improve accuracy'
+                    ]
+                }
+            ],
+            'rushing_shot': [
+                {
+                    'name': 'Slow Motion Perfect Form Drill',
+                    'purpose': 'Develop proper shooting rhythm and eliminate rushing',
+                    'equipment': 'Basketball, basket',
+                    'duration': '15-20 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '40-60 slow-motion shots',
+                    'instructions': [
+                        'Practice shooting in extreme slow motion - 3x slower than normal',
+                        'Focus on each phase: catch, dip, lift, release, follow-through',
+                        'Make each movement deliberate and controlled',
+                        'Feel the proper sequence and timing of the shot',
+                        'Gradually increase speed while maintaining the same rhythm',
+                        'Never sacrifice form for speed - rhythm first, then tempo'
+                    ],
+                    'key_points': [
+                        'Slow, perfect practice builds proper muscle memory',
+                        'Rhythm is more important than shooting speed',
+                        'Each phase should flow smoothly into the next'
+                    ]
+                }
+            ],
+            'inconsistent_release_point': [
+                {
+                    'name': 'Release Point Consistency Drill',
+                    'purpose': 'Develop identical release point for every shot',
+                    'equipment': 'Basketball, basket, mirror or video camera',
+                    'duration': '12-15 minutes',
+                    'difficulty': 'Intermediate',
+                    'reps': '50-75 shots focusing on release position',
+                    'instructions': [
+                        'Identify your optimal release point - ball position relative to head',
+                        'Practice bringing ball to exact same spot every time',
+                        'Use mirror or video to check release point consistency',
+                        'Ball should always be at same height and distance from head',
+                        'Focus on repeatable, identical setup position',
+                        'Gradually increase shooting speed while maintaining consistency'
+                    ],
+                    'key_points': [
+                        'Consistent release point creates consistent arc and accuracy',
+                        'Every shot should look identical at the moment of release',
+                        'Small variations in release point cause big accuracy changes'
+                    ]
+                }
+            ],
+            'elbow_flare': [
+                {
+                    'name': 'Elbow Under Ball Drill',
+                    'purpose': 'Train proper elbow alignment under the basketball',
+                    'equipment': 'Basketball, basket, wall for reference',
+                    'duration': '10-15 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '50-75 shots with elbow focus',
+                    'instructions': [
+                        'Stand with shooting side arm against a wall for reference',
+                        'Practice shooting motion keeping elbow aligned under ball',
+                        'Elbow should move straight up and down, not flare outward',
+                        'Use wall to feel proper elbow tracking initially',
+                        'Gradually move away from wall while maintaining alignment',
+                        'Focus on elbow being directly under the ball throughout shot'
+                    ],
+                    'key_points': [
+                        'Proper elbow alignment improves accuracy significantly',
+                        'Elbow flare creates inconsistent ball rotation',
+                        'Straight up-and-down elbow movement is most efficient'
+                    ]
+                }
+            ],
+            'follow_through_timing': [
+                {
+                    'name': 'Follow-Through Hold Drill',
+                    'purpose': 'Develop proper follow-through timing and consistency',
+                    'equipment': 'Basketball, basket',
+                    'duration': '12-15 minutes',
+                    'difficulty': 'Beginner to Intermediate',
+                    'reps': '50-75 shots with extended holds',
+                    'instructions': [
+                        'Shoot with proper form focusing on complete follow-through',
+                        'Hold follow-through position for 3-5 seconds after release',
+                        'Wrist should be snapped down, fingers pointing at rim',
+                        'Arm should be fully extended toward the basket',
+                        'Count "one Mississippi, two Mississippi, three Mississippi"',
+                        'Practice until follow-through feels natural and automatic'
+                    ],
+                    'key_points': [
+                        'Hold position until ball hits rim or net',
+                        'Consistent follow-through timing improves accuracy',
+                        'Should feel like "reaching into the cookie jar"'
+                    ]
+                },
+                {
+                    'name': 'Mirror Follow-Through Drill',
+                    'purpose': 'Visual feedback for follow-through timing consistency',
+                    'equipment': 'Large mirror, basketball',
+                    'duration': '8-10 minutes',
+                    'difficulty': 'Beginner',
+                    'reps': '30-50 form shots in mirror',
+                    'instructions': [
+                        'Stand facing mirror in shooting position',
+                        'Practice shooting motion while watching follow-through',
+                        'Focus on consistent timing of wrist snap and hold',
+                        'Identify any early or late follow-through releases',
+                        'Practice until timing looks identical every time',
+                        'Record yourself for later analysis if possible'
+                    ],
+                    'key_points': [
+                        'Visual feedback helps identify timing inconsistencies',
+                        'Follow-through should look identical every shot',
+                        'Timing is as important as form'
+                    ]
+                }
             ]
             # Add more flaw-specific drills as needed
         }
@@ -887,14 +1448,54 @@ class BasketballAnalysisPDFGenerator:
 def generate_improvement_plan_pdf(analysis_results, job_id, output_dir="results"):
     """Generate comprehensive PDF improvement plan"""
     
-    generator = BasketballAnalysisPDFGenerator()
-    output_path = os.path.join(output_dir, f"60_Day_Improvement_Plan_{job_id}.pdf")
-    
     try:
+        # Ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Validate input data
+        if not analysis_results:
+            print("Error: analysis_results is None or empty")
+            return None
+            
+        if not job_id:
+            print("Error: job_id is None or empty")
+            return None
+        
+        # Check if we have meaningful data to generate a PDF
+        detailed_flaws = analysis_results.get('detailed_flaws', [])
+        shot_phases = analysis_results.get('shot_phases', [])
+        feedback_points = analysis_results.get('feedback_points', [])
+        
+        if not detailed_flaws and not shot_phases and not feedback_points:
+            print("Error: No meaningful analysis data available for PDF generation")
+            return None
+        
+        generator = BasketballAnalysisPDFGenerator()
+        output_path = os.path.join(output_dir, f"60_Day_Improvement_Plan_{job_id}.pdf")
+        
+        # Additional validation: check if path is writable
+        try:
+            with open(output_path, 'w') as test_file:
+                pass
+            os.remove(output_path)
+        except Exception as e:
+            print(f"Error: Cannot write to output path {output_path}: {e}")
+            return None
+        
         pdf_path = generator.generate_improvement_plan(analysis_results, job_id, output_path)
-        return pdf_path
+        
+        # Verify the PDF was actually created
+        if pdf_path and os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+            print(f"Successfully generated PDF: {pdf_path} ({os.path.getsize(pdf_path)} bytes)")
+            return pdf_path
+        else:
+            print(f"Error: PDF generation failed - file not created or empty")
+            return None
+            
     except Exception as e:
         print(f"Error generating PDF: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 if __name__ == "__main__":

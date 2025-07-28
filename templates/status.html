@@ -68,9 +68,9 @@
                         <div class="col-md-3">
                             <div class="text-center">
                                 <div id="step4-icon" class="mb-2">
-                                    <i class="fas fa-check fa-2x text-muted"></i>
+                                    <i class="fas fa-file-pdf fa-2x text-muted"></i>
                                 </div>
-                                <small>Complete</small>
+                                <small>Generating Reports</small>
                             </div>
                         </div>
                     </div>
@@ -128,6 +128,23 @@ function updateStatus() {
                     updateStepIcon('step2-icon', 'processing');
                     updateStepIcon('step3-icon', 'processing');
                     break;
+                case 'FINALIZING':
+                    badgeClass = 'bg-info';
+                    progress = 85;
+                    progressText.textContent = 'Finalizing results and generating reports...';
+                    updateStepIcon('step1-icon', 'success');
+                    updateStepIcon('step2-icon', 'success');
+                    updateStepIcon('step3-icon', 'success');
+                    updateStepIcon('step4-icon', 'processing');
+                    
+                    // Update status message for finalizing
+                    statusMessages.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="fas fa-cog fa-spin me-2"></i>
+                            <strong>Finalizing Analysis!</strong> Generating improvement plan and organizing results...
+                        </div>
+                    `;
+                    break;
                 case 'COMPLETED':
                     badgeClass = 'bg-success';
                     progress = 100;
@@ -136,6 +153,9 @@ function updateStatus() {
                     updateStepIcon('step2-icon', 'success');
                     updateStepIcon('step3-icon', 'success');
                     updateStepIcon('step4-icon', 'success');
+                    
+                    // Remove progress bar animation when complete
+                    progressBar.classList.remove('progress-bar-animated');
                     
                     // Show results button
                     viewResultsBtn.style.display = 'inline-block';
@@ -171,8 +191,30 @@ function updateStatus() {
                     break;
             }
             
+            // Set user-friendly status text instead of raw API status
+            let statusText = data.status;
+            switch(data.status) {
+                case 'PENDING':
+                    statusText = 'PENDING';
+                    break;
+                case 'PROCESSING':
+                    statusText = 'PROCESSING';
+                    break;
+                case 'FINALIZING':
+                    statusText = 'FINALIZING';
+                    break;
+                case 'COMPLETED':
+                    statusText = 'COMPLETED';
+                    break;
+                case 'FAILED':
+                    statusText = 'FAILED';
+                    break;
+                default:
+                    statusText = data.status;
+            }
+            
             statusBadge.className = `badge status-badge ${badgeClass}`;
-            statusBadge.textContent = data.status;
+            statusBadge.textContent = statusText;
             
             progressBar.style.width = `${progress}%`;
             progressBar.setAttribute('aria-valuenow', progress);

@@ -39,6 +39,57 @@
 <!-- Upload Section -->
 <section class="py-5">
     <div class="container">
+        <!-- Recording Guidelines (Collapsible) -->
+        <div class="text-center mb-4">
+            <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#recordingGuidelines" aria-expanded="false">
+                <i class="fas fa-video me-2"></i>Show Recording Guidelines (Recommended)
+            </button>
+        </div>
+        
+        <div class="collapse mb-4" id="recordingGuidelines">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>How to Record Your Video for Best Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-mobile-alt me-2"></i>Most Important: Hold Your Phone Horizontally!</h6>
+                        <p class="mb-0">Always record in <strong>landscape mode</strong> (phone held sideways). This is crucial for accurate analysis.</p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6><i class="fas fa-check-circle text-success me-2"></i>Do This:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">📱 Hold phone horizontally (landscape)</li>
+                                <li class="mb-2">👁️ Stand to the shooter's side (8-10 feet away)</li>
+                                <li class="mb-2">🎯 Show entire body (feet to fingertips)</li>
+                                <li class="mb-2">🏀 Include the basketball hoop in frame</li>
+                                <li class="mb-2">💡 Ensure good lighting on the shooter</li>
+                                <li class="mb-2">📐 Keep camera level and steady</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6><i class="fas fa-times-circle text-danger me-2"></i>Avoid This:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">❌ Recording in portrait mode (phone upright)</li>
+                                <li class="mb-2">❌ Standing too close or too far away</li>
+                                <li class="mb-2">❌ Following the ball with the camera</li>
+                                <li class="mb-2">❌ Cutting off feet or hands from the frame</li>
+                                <li class="mb-2">❌ Recording in poor lighting</li>
+                                <li class="mb-2">❌ Tilting the camera during recording</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <small class="text-muted">Following these guidelines ensures the most accurate shot analysis possible!</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Upload Form -->
         <div class="row justify-content-center">
             <div class="col-md-8">
                 <div class="card shadow">
@@ -49,6 +100,16 @@
                         </h3>
                     </div>
                     <div class="card-body">
+                        <!-- Orientation Reminder -->
+                        <div class="alert alert-info">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-mobile-alt fa-2x me-3" style="transform: rotate(90deg);"></i>
+                                <div>
+                                    <strong>Quick Reminder:</strong> Make sure your video was recorded in landscape mode (phone held sideways) for the best analysis results.
+                                </div>
+                            </div>
+                        </div>
+                        
                         <form action="{{ url_for('upload_video') }}" method="post" enctype="multipart/form-data">
                             <div class="upload-area mb-4">
                                 <div id="upload-display">
@@ -56,7 +117,8 @@
                                     <h4>Drop your video here or click to browse</h4>
                                     <p class="text-muted mb-4">
                                         Supported formats: MP4, AVI, MOV, MKV<br>
-                                        Maximum size: 100MB
+                                        Maximum size: 100MB<br>
+                                        <strong>Recommended: Landscape orientation videos</strong>
                                     </p>
                                 </div>
                                 <input type="file" class="form-control" name="video" accept=".mp4,.avi,.mov,.mkv" required>

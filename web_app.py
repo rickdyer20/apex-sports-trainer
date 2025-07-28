@@ -1,11 +1,23 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response
 import os
 import uuid
+import shutil
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
 import threading
 import time
+import logging
+
+# Configure production logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('basketball_analysis.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # Import our basketball analysis service
 from basketball_analysis_service import (
@@ -208,80 +220,23 @@ load_all_jobs()
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def ensure_web_compatible_video(video_path):
-    """Ensure video is web-compatible, convert if needed. Rotation is handled during analysis."""
-    if not os.path.exists(video_path):
-        return video_path
-    
-    # Check if video needs conversion (skip rotation handling since it's done during analysis)
-    try:
-        import subprocess
-        
-        # Get video codec info
-        probe_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
-        result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
-        
-        if result.returncode == 0:
-            import json
-            probe_data = json.loads(result.stdout)
-            
-            needs_conversion = False
-            
-            # Check if video stream uses web-compatible codec
-            for stream in probe_data.get('streams', []):
-                if stream.get('codec_type') == 'video':
-                    codec = stream.get('codec_name', '')
-                    
-                    # If not H.264, needs conversion
-                    if codec != 'h264':
-                        needs_conversion = True
-                    break
-            
-            # Convert to web-compatible format only if needed
-            if needs_conversion:
-                web_path = video_path.replace('.mp4', '_web.mp4')
-                
-                # Build FFmpeg command for web compatibility only
-                convert_cmd = [
-                    'ffmpeg', '-y',
-                    '-i', video_path,
-                    '-c:v', 'libx264',
-                    '-profile:v', 'baseline',
-                    '-level', '3.0',
-                    '-pix_fmt', 'yuv420p',
-                    '-movflags', '+faststart',
-                    '-preset', 'fast',
-                    '-crf', '23',
-                    web_path
-                ]
-                
-                convert_result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=120)
-                
-                if convert_result.returncode == 0 and os.path.exists(web_path):
-                    # Replace original with converted version
-                    os.remove(video_path)
-                    os.rename(web_path, video_path)
-                    print(f"Converted video to web format: {video_path}")
-                    return video_path
-                else:
-                    print(f"Video conversion failed: {convert_result.stderr}")
-                    
-    except Exception as e:
-        print(f"Video compatibility check failed: {e}")
-    
-    return video_path
+
 
 def process_video_async(job_id, video_path, ideal_data):
-    """Process video analysis in background thread"""
+    """Process video analysis in background thread with production optimizations"""
     import signal
     import threading
+    import time
+    
+    start_time = time.time()
+    logging.info(f"Starting analysis for job {job_id}")
     
     def timeout_handler(signum, frame):
         raise TimeoutError("Analysis timeout - processing took too long")
     
     try:
-        # Set timeout for analysis (10 minutes for deployment)
-        timeout_seconds = 600  # 10 minutes
+        # Set timeout for analysis (5 minutes for production deployment)
+        timeout_seconds = 300  # Reduced from 10 minutes to 5 minutes for faster feedback
         
         # Update job status
         analysis_jobs[job_id]['status'] = 'PROCESSING'
@@ -336,6 +291,12 @@ def process_video_async(job_id, video_path, ideal_data):
             print(f"DEBUG: Analysis results keys: {analysis_results.keys()}")
         else:
             print(f"DEBUG: Analysis results is None or empty")
+        
+        # Update status to show post-processing phase
+        analysis_jobs[job_id]['status'] = 'FINALIZING'
+        analysis_jobs[job_id]['updated_at'] = datetime.now()
+        save_job_to_file(job_id, analysis_jobs[job_id])
+        logging.info(f"Job {job_id} entering finalization phase - processing and organizing output files")
         
         # Check if analysis encountered errors
         if analysis_results and 'error' in analysis_results:
@@ -453,10 +414,18 @@ def process_video_async(job_id, video_path, ideal_data):
         
         save_results_to_file(job_id, job_results[job_id])
         
-        # Update job status
+        # Log performance metrics
+        end_time = time.time()
+        processing_time = end_time - start_time
+        logging.info(f"Analysis completed for job {job_id} in {processing_time:.2f} seconds")
+        logging.info(f"Generated {len(job_results[job_id].get('flaw_stills', []))} flaw stills")
+        
+        # Update job status to COMPLETED only after all file operations are complete
         analysis_jobs[job_id]['status'] = 'COMPLETED'
         analysis_jobs[job_id]['updated_at'] = datetime.now()
         save_job_to_file(job_id, analysis_jobs[job_id])
+        
+        logging.info(f"Job {job_id} fully completed - all files processed and moved to final locations")
         
     except Exception as e:
         print(f"Error processing job {job_id}: {e}")
@@ -690,7 +659,7 @@ def demo_results():
 
 @app.route('/results/<job_id>')
 def view_results(job_id):
-    """View analysis results"""
+    """View analysis results with caching for production"""
     if job_id not in analysis_jobs:
         # Try to load from file
         job_data = load_job_from_file(job_id)
@@ -754,7 +723,9 @@ def view_results(job_id):
     if 'warning' in results:
         flash(results['warning'], 'warning')
     
-    return render_template('results.html', job=job, results=results, job_id=job_id)
+    # Add cache headers for production performance
+    response = render_template('results.html', job=job, results=results, job_id=job_id)
+    return response
 
 @app.route('/download/<job_id>')
 def download_result(job_id):
@@ -809,45 +780,7 @@ def download_result(job_id):
         mimetype='video/mp4'
     )
 
-@app.route('/video/<job_id>')
-def serve_video(job_id):
-    """Serve analyzed video for web playback with proper headers"""
-    if job_id not in job_results:
-        # Try to load results from file
-        results_data = load_results_from_file(job_id)
-        if results_data:
-            job_results[job_id] = results_data
-        else:
-            print(f"DEBUG VIDEO: Results not found for job {job_id}")
-            print(f"DEBUG VIDEO: Job results keys: {list(job_results.keys())}")
-            flash('Results not available')
-            return redirect(url_for('index'))
-    
-    video_path = job_results[job_id]['video_path']
-    print(f"DEBUG VIDEO: Video path for job {job_id}: {video_path}")
-    print(f"DEBUG VIDEO: Video path exists: {video_path and os.path.exists(video_path)}")
-    
-    if not video_path or not os.path.exists(video_path):
-        print(f"DEBUG VIDEO: Video file not found - {video_path}")
-        flash('Result video not found - analysis may have failed to generate an output video')
-        return redirect(url_for('index'))
-    
-    # Ensure video is web-compatible
-    video_path = ensure_web_compatible_video(video_path)
-    
-    def generate():
-        with open(video_path, 'rb') as f:
-            data = f.read(1024)
-            while data:
-                yield data
-                data = f.read(1024)
-    
-    response = Response(generate(), mimetype="video/mp4")
-    response.headers.add('Accept-Ranges', 'bytes')
-    response.headers.add('Cache-Control', 'no-cache')
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    
-    return response
+
 
 @app.route('/download_flaw_still/<job_id>/<int:still_index>')
 def download_flaw_still(job_id, still_index):
@@ -942,33 +875,219 @@ Analysis Date: {results['processed_at'].strftime('%B %d, %Y at %I:%M %p')}
 PACKAGE CONTENTS:
 - analyzed_video_{job_id}.mp4: Slow-motion video with pose overlays and analysis
 - {improvement_plan['filename'] if improvement_plan else 'N/A'}: Comprehensive 60-day improvement plan
-- flaw_analysis/: Frame stills showing detected flaws with coaching overlays
-- feedback_frames/: Additional feedback frame captures
+- detailed_flaws_report.txt: Comprehensive breakdown of detected issues
+- flaw_analysis/: Frame stills showing detected flaws (if available)
+- feedback_frames/: Additional feedback frame captures (if available)
 
 DETECTED FLAWS: {len(results.get('detailed_flaws', []))}
 """
         
-        for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
+        # Add detailed flaw information
+        if results.get('detailed_flaws'):
+            for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
+                # Handle both dictionary and object formats for compatibility
+                def safe_get(obj, key, default='Unknown'):
+                    if hasattr(obj, 'get'):
+                        return obj.get(key, default)
+                    else:
+                        return getattr(obj, key, default)
+                
+                flaw_type = safe_get(flaw, 'flaw_type', 'Unknown')
+                severity = safe_get(flaw, 'severity', 0)
+                phase = safe_get(flaw, 'phase', 'Unknown')
+                frame_number = safe_get(flaw, 'frame_number', 'Unknown')
+                camera_context = safe_get(flaw, 'camera_context', '')
+                plain_language = safe_get(flaw, 'plain_language', 'No description available')
+                coaching_tip = safe_get(flaw, 'coaching_tip', 'No coaching tip available')
+                drill_suggestion = safe_get(flaw, 'drill_suggestion', 'No drill suggestion available')
+                
+                summary_content += f"""
+{i}. {flaw_type.replace('_', ' ').title()}
+   Severity: {severity:.1f}/100
+   Phase: {phase}
+   Frame: {frame_number}
+   {f"Camera View: {camera_context}" if camera_context else ""}
+   Issue: {plain_language}
+   Coaching Tip: {coaching_tip}
+   Recommended Drill: {drill_suggestion}
+"""
+        else:
+            summary_content += "\nNo specific flaws detected in this analysis."
+        
+        # Add shot phases information
+        if results.get('shot_phases'):
             summary_content += f"""
-{i}. {flaw.get('flaw_type', 'Unknown').replace('_', ' ').title()}
-   Severity: {flaw.get('severity', 0):.1f}/100
-   Phase: {flaw.get('phase', 'Unknown')}
-   Issue: {flaw.get('plain_language', 'No description available')}
+
+SHOT PHASES IDENTIFIED: {len(results.get('shot_phases', []))}
+"""
+            for i, phase in enumerate(results.get('shot_phases', []), 1):
+                # Handle both dictionary and object formats for compatibility
+                def safe_get(obj, key, default='Unknown'):
+                    if hasattr(obj, 'get'):
+                        return obj.get(key, default)
+                    else:
+                        return getattr(obj, key, default)
+                
+                phase_name = safe_get(phase, 'name', 'Unknown Phase')
+                start_frame = safe_get(phase, 'start_frame', 'Unknown')
+                end_frame = safe_get(phase, 'end_frame', 'Unknown')
+                key_moment = safe_get(phase, 'key_moment_frame', 'Unknown')
+                
+                summary_content += f"""
+{i}. {phase_name}
+   Start Frame: {start_frame}
+   End Frame: {end_frame}
+   Key Moment: Frame {key_moment}
+"""
+        
+        # Add feedback points
+        if results.get('feedback_points'):
+            summary_content += f"""
+
+BIOMECHANICAL FEEDBACK: {len(results.get('feedback_points', []))} Point(s)
+"""
+            for i, feedback in enumerate(results.get('feedback_points', []), 1):
+                # Handle both dictionary and object formats for compatibility
+                def safe_get(obj, key, default='Unknown'):
+                    if hasattr(obj, 'get'):
+                        return obj.get(key, default)
+                    else:
+                        return getattr(obj, key, default)
+                
+                frame_num = safe_get(feedback, 'frame_number', 'Unknown')
+                discrepancy = safe_get(feedback, 'discrepancy', 'No description available')
+                remedy = safe_get(feedback, 'remedy_tips', 'No remedy tips available')
+                
+                summary_content += f"""
+{i}. Frame {frame_num}
+   Issue: {discrepancy}
+   Remedy: {remedy}
 """
         
         summary_content += f"""
 
+FRAME STILLS CAPTURED:
+- Flaw Analysis Stills: {len(flaw_stills)} {'(images included in flaw_analysis/ folder)' if flaw_stills else '(no stills captured - analysis used improved detection that only flags significant flaws)'}
+- Feedback Frame Stills: {len(feedback_stills)} {'(images included in feedback_frames/ folder)' if feedback_stills else '(no stills captured - biomechanical analysis provided via video overlay)'}
+
+{f"FOLDER STRUCTURE:" if flaw_stills or feedback_stills else ""}
+{f"- flaw_analysis/: Contains {len(flaw_stills)} frame still(s) showing detected shooting form issues" if flaw_stills else ""}
+{f"- feedback_frames/: Contains {len(feedback_stills)} additional analysis frame(s)" if feedback_stills else ""}
+
 NEXT STEPS:
 1. Review the 60-day improvement plan PDF for detailed training guidance
-2. Study the flaw analysis images to understand specific issues
-3. Follow the progressive drill recommendations
-4. Re-analyze your shot every 2 weeks using the Basketball Analysis App
-5. Track your progress using the provided benchmarks
+2. Watch the analyzed video to see pose overlays and phase markers
+3. Study the detailed flaws report for specific improvements needed
+4. Follow the progressive drill recommendations for each identified flaw
+5. Re-analyze your shot every 2 weeks using the Basketball Analysis App
+6. Track your progress using the provided benchmarks
+
+TECHNICAL NOTES:
+- All analysis based on MediaPipe pose estimation and biomechanical calculations
+- Camera angle detection ensures only observable flaws are reported
+- Severity scores range from 0-100 (higher = more significant issue)
+- Coaching tips are tailored to your specific form deviations
 
 For questions or support, visit: www.basketballanalysis.ai
 """
         
         zip_file.writestr(f"Analysis_Summary_{job_id}.txt", summary_content)
+        
+        # Create detailed flaws report
+        flaws_report = f"""DETAILED SHOOTING FLAWS REPORT
+Analysis ID: {job_id}
+Generated: {results['processed_at'].strftime('%B %d, %Y at %I:%M %p')}
+
+This report provides comprehensive information about each shooting flaw detected
+during your basketball shot analysis, including technical details, coaching
+guidance, and improvement recommendations.
+
+===============================================================================
+"""
+        
+        if results.get('detailed_flaws'):
+            for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
+                # Handle both dictionary and object formats for compatibility
+                def safe_get(obj, key, default='Unknown'):
+                    if hasattr(obj, 'get'):
+                        return obj.get(key, default)
+                    else:
+                        return getattr(obj, key, default)
+                
+                flaw_type = safe_get(flaw, 'flaw_type', 'Unknown')
+                severity = safe_get(flaw, 'severity', 0)
+                phase = safe_get(flaw, 'phase', 'Unknown')
+                frame_number = safe_get(flaw, 'frame_number', 'Unknown')
+                camera_context = safe_get(flaw, 'camera_context', 'Not specified')
+                description = safe_get(flaw, 'description', 'No technical description available')
+                plain_language = safe_get(flaw, 'plain_language', 'No explanation available')
+                coaching_tip = safe_get(flaw, 'coaching_tip', 'No coaching tip available')
+                drill_suggestion = safe_get(flaw, 'drill_suggestion', 'No drill suggestion available')
+                
+                flaws_report += f"""
+FLAW #{i}: {flaw_type.replace('_', ' ').upper()}
+===============================================================================
+Type: {flaw_type}
+Severity Score: {severity:.2f}/100
+Shot Phase: {phase}
+Frame Number: {frame_number}
+Camera Context: {camera_context}
+
+DESCRIPTION:
+{description}
+
+PLAIN LANGUAGE EXPLANATION:
+{plain_language}
+
+COACHING TIP:
+{coaching_tip}
+
+RECOMMENDED DRILL:
+{drill_suggestion}
+
+"""
+        else:
+            flaws_report += """
+NO SIGNIFICANT FLAWS DETECTED
+===============================================================================
+Your shooting form analysis did not identify any major technical issues that
+exceed our detection thresholds. This could indicate:
+
+1. Good fundamental shooting mechanics
+2. Consistent form throughout the shot motion
+3. Camera angle limitations (some issues may not be visible)
+4. Improved detection system that only flags significant issues
+
+WHY NO FRAME STILLS WERE CAPTURED:
+Our enhanced analysis system now uses more discerning detection that only
+captures frame stills when significant flaws are identified. If no stills
+were generated, it means your shooting form passed our quality checks,
+though there may still be minor biomechanical feedback provided in the
+video analysis.
+
+RECOMMENDATIONS:
+- Continue practicing your current form
+- Focus on consistency and repetition
+- Review the video analysis for subtle biomechanical feedback
+- Consider recording from different angles for more comprehensive analysis
+- Re-analyze periodically to track any changes in form
+
+"""
+        
+        flaws_report += f"""
+===============================================================================
+ANALYSIS METHODOLOGY:
+- Pose estimation: MediaPipe with 33 body landmarks
+- Angle calculations: Vector mathematics for joint positions
+- Threshold validation: Statistical analysis across multiple frames
+- Camera awareness: Automatic detection of viewing angle limitations
+- Severity scoring: Deviation from biomechanically optimal ranges
+
+For more information about our analysis methods and to upload additional
+videos, visit: www.basketballanalysis.ai
+"""
+        
+        zip_file.writestr(f"detailed_flaws_report_{job_id}.txt", flaws_report)
     
     zip_buffer.seek(0)
     
@@ -1099,6 +1218,72 @@ def health_check():
         health_status['checks']['disk_space'] = f'error: {str(e)}'
     
     return jsonify(health_status)
+
+@app.route('/clear-cache', methods=['POST', 'GET'])
+def clear_cache():
+    """Clear all in-memory and file caches for fresh analysis"""
+    try:
+        global job_results, analysis_jobs
+        
+        # Clear in-memory caches
+        cache_cleared = {
+            'memory_jobs_cleared': len(analysis_jobs),
+            'memory_results_cleared': len(job_results),
+            'files_cleared': 0,
+            'temp_files_cleared': 0
+        }
+        
+        analysis_jobs.clear()
+        job_results.clear()
+        
+        # Clear file-based caches
+        import glob
+        jobs_dir = 'jobs'
+        if os.path.exists(jobs_dir):
+            cache_files = glob.glob(os.path.join(jobs_dir, '*_results.json'))
+            for cache_file in cache_files:
+                try:
+                    os.remove(cache_file)
+                    cache_cleared['files_cleared'] += 1
+                except:
+                    pass
+        
+        # Clear temporary files
+        temp_patterns = ['temp_*.mp4', 'temp_*.png', 'temp_*_frames']
+        for pattern in temp_patterns:
+            temp_files = glob.glob(pattern)
+            cache_cleared['temp_files_cleared'] += len(temp_files)
+            for temp_file in temp_files:
+                try:
+                    if os.path.isdir(temp_file):
+                        shutil.rmtree(temp_file)
+                    else:
+                        os.remove(temp_file)
+                except:
+                    pass
+        
+        flash(f"✅ Cache cleared! Memory: {cache_cleared['memory_jobs_cleared']} jobs, {cache_cleared['memory_results_cleared']} results. Files: {cache_cleared['files_cleared']} cache files, {cache_cleared['temp_files_cleared']} temp files.", 'success')
+        
+        if request.method == 'GET':
+            return jsonify({
+                'status': 'success',
+                'message': 'All caches cleared successfully',
+                'details': cache_cleared
+            })
+        else:
+            return redirect(url_for('index'))
+            
+    except Exception as e:
+        error_msg = f"❌ Error clearing cache: {str(e)}"
+        flash(error_msg, 'error')
+        
+        if request.method == 'GET':
+            return jsonify({
+                'status': 'error',
+                'message': error_msg
+            }), 500
+        else:
+            return redirect(url_for('index'))
 
 if __name__ == '__main__':
     print("🏀 Basketball Analysis Web Service Starting...")

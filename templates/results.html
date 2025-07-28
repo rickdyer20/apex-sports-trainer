@@ -35,89 +35,7 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Video Player Section -->
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card shadow-sm">
-                                <div class="card-header bg-primary text-white">
-                                    <h5 class="card-title mb-0">
-                                        <i class="fas fa-play-circle me-2"></i>
-                                        Slow-Motion Analysis Video
-                                    </h5>
-                                </div>
-                                <div class="card-body p-0">
-                                    <div class="video-container" style="position: relative; width: 100%; background: #000;">
-                                        <video 
-                                            id="analysisVideo"
-                                            width="100%" 
-                                            height="auto"
-                                            controls 
-                                            preload="metadata"
-                                            style="max-height: 500px; display: block; margin: 0 auto;"
-                                            poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDgwMCA0NTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIiBmaWxsPSIjMjEzNTQ3Ii8+Cjx0ZXh0IHg9IjQwMCIgeT0iMjI1IiBmaWxsPSIjRkZGRkZGIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiPkxvYWRpbmcgQW5hbHlzaXMgVmlkZW8uLi48L3RleHQ+Cjwvc3ZnPgo=">
-                                            <source src="{{ url_for('serve_video', job_id=job_id) }}" type="video/mp4">
-                                            <p>Your browser does not support the video tag. 
-                                               <a href="{{ url_for('download_result', job_id=job_id) }}" class="btn btn-primary">
-                                                   <i class="fas fa-download me-2"></i>Download Video Instead
-                                               </a>
-                                            </p>
-                                        </video>
-                                        
-                                        <!-- Video Controls Overlay -->
-                                        <div class="video-controls-info position-absolute" style="bottom: 10px; left: 10px; right: 10px;">
-                                            <div class="row">
-                                                <div class="col-md-8">
-                                                    <small class="text-white bg-dark px-2 py-1 rounded">
-                                                        <i class="fas fa-info-circle me-1"></i>
-                                                        <strong>Features:</strong> Pose estimation overlays, phase identification, slow-motion analysis
-                                                    </small>
-                                                </div>
-                                                <div class="col-md-4 text-end">
-                                                    <button class="btn btn-sm btn-outline-light" onclick="toggleVideoInfo()">
-                                                        <i class="fas fa-question-circle me-1"></i>Video Help
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Video Information Panel -->
-                                    <div id="videoInfoPanel" class="collapse">
-                                        <div class="card-body border-top">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <h6><i class="fas fa-eye me-2"></i>What You're Seeing</h6>
-                                                    <ul class="list-unstyled small">
-                                                        <li><i class="fas fa-circle text-primary me-2"></i>Skeleton overlay showing body landmarks</li>
-                                                        <li><i class="fas fa-circle text-success me-2"></i>Phase labels (Load/Dip, Release, Follow-Through)</li>
-                                                        <li><i class="fas fa-circle text-warning me-2"></i>Flaw indicators and coaching tips</li>
-                                                        <li><i class="fas fa-circle text-info me-2"></i>Joint angle measurements and analysis</li>
-                                                    </ul>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <h6><i class="fas fa-play me-2"></i>Video Controls</h6>
-                                                    <ul class="list-unstyled small">
-                                                        <li><i class="fas fa-pause me-2"></i>Pause at key moments to study form</li>
-                                                        <li><i class="fas fa-step-backward me-2"></i>Use frame-by-frame navigation</li>
-                                                        <li><i class="fas fa-search-plus me-2"></i>Right-click to save frame as image</li>
-                                                        <li><i class="fas fa-volume-mute me-2"></i>Video optimized for detailed analysis</li>
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                            <div class="alert alert-info mb-0">
-                                                <small>
-                                                    <i class="fas fa-lightbulb me-2"></i>
-                                                    <strong>Tip:</strong> This video is slowed down to 1/4 speed for detailed biomechanical analysis. 
-                                                    Look for red highlights indicating areas for improvement and green text showing shooting phases.
-                                                </small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
                     
                     <!-- Analysis Summary -->
                     <div class="alert alert-info">
@@ -254,6 +172,96 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Detailed Flaws Summary Section -->
+            {% if results.detailed_flaws %}
+            <div class="card shadow mt-4">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Shooting Flaws Detected - {{ results.detailed_flaws|length }} Issue{{ 's' if results.detailed_flaws|length != 1 else '' }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="mb-4">
+                        <i class="fas fa-info-circle text-info me-2"></i>
+                        The following shooting form issues were identified during your analysis. Each flaw includes 
+                        specific coaching guidance and recommended drills for improvement.
+                    </p>
+                    
+                    <div class="row g-3">
+                        {% for flaw in results.detailed_flaws %}
+                        <div class="col-md-6">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-dark py-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            {{ flaw.flaw_type.replace('_', ' ').title() }}
+                                        </h6>
+                                        <span class="badge {% if flaw.severity < 20 %}bg-success{% elif flaw.severity < 40 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                            {{ "%.1f"|format(flaw.severity) }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="card-body p-3">
+                                    <div class="mb-2">
+                                        <small class="text-muted">
+                                            <strong>Phase:</strong> {{ flaw.phase }} | 
+                                            <strong>Frame:</strong> {{ flaw.frame_number }}
+                                            {% if flaw.camera_context %}
+                                            | <strong>View:</strong> {{ flaw.camera_context }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <strong>Issue:</strong>
+                                        <p class="small text-muted mb-2">{{ flaw.plain_language }}</p>
+                                        
+                                        <!-- Enhanced Fluidity Analysis Details -->
+                                        {% if flaw.fluidity_details %}
+                                        <div class="alert alert-info p-2 mt-2" style="font-size: 0.85em;">
+                                            <strong><i class="fas fa-chart-line me-1"></i>Advanced Motion Analysis:</strong><br>
+                                            <div class="row mt-2">
+                                                <div class="col-4">
+                                                    <span class="badge bg-primary">Fluidity Score</span><br>
+                                                    <strong>{{ "%.1f"|format(flaw.fluidity_details.overall_score) }}/100</strong>
+                                                </div>
+                                                <div class="col-4">
+                                                    <span class="badge bg-warning">Acceleration Spikes</span><br>
+                                                    <strong>{{ flaw.fluidity_details.acceleration_spikes }} detected</strong>
+                                                </div>
+                                                <div class="col-4">
+                                                    <span class="badge bg-danger">Rhythm Breaks</span><br>
+                                                    <strong>{{ flaw.fluidity_details.rhythm_breaks }} detected</strong>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted mt-2 d-block">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                Advanced biomechanical analysis detected irregular motion patterns in your shooting form.
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <strong>Coaching Tip:</strong>
+                                        <p class="small text-primary mb-2">{{ flaw.coaching_tip }}</p>
+                                    </div>
+                                    
+                                    <div class="mb-2">
+                                        <strong>Recommended Drill:</strong>
+                                        <p class="small text-success mb-0">{{ flaw.drill_suggestion }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             
             <!-- Flaw Analysis Stills Section -->
             {% if results.flaw_stills %}
@@ -400,74 +408,5 @@ setTimeout(() => {
         setTimeout(() => alert.remove(), 500);
     });
 }, 10000);
-
-// Toggle video information panel
-function toggleVideoInfo() {
-    const panel = document.getElementById('videoInfoPanel');
-    const button = event.target.closest('button');
-    
-    if (panel.classList.contains('show')) {
-        panel.classList.remove('show');
-        button.innerHTML = '<i class="fas fa-question-circle me-1"></i>Video Help';
-    } else {
-        panel.classList.add('show');
-        button.innerHTML = '<i class="fas fa-times me-1"></i>Hide Help';
-    }
-}
-
-// Video player enhancements
-document.addEventListener('DOMContentLoaded', function() {
-    const video = document.getElementById('analysisVideo');
-    
-    if (video) {
-        // Add loading indicator
-        video.addEventListener('loadstart', function() {
-            console.log('Video loading started');
-        });
-        
-        video.addEventListener('loadeddata', function() {
-            console.log('Video loaded successfully');
-        });
-        
-        video.addEventListener('error', function() {
-            console.error('Video failed to load');
-            const container = video.parentElement;
-            container.innerHTML = `
-                <div class="text-center py-5">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h5>Video Loading Error</h5>
-                    <p class="text-muted">Unable to load the analysis video. Please try downloading it instead.</p>
-                    <a href="{{ url_for('download_result', job_id=job_id) }}" class="btn btn-primary">
-                        <i class="fas fa-download me-2"></i>Download Video
-                    </a>
-                </div>
-            `;
-        });
-        
-        // Add keyboard shortcuts for video control
-        document.addEventListener('keydown', function(e) {
-            if (document.activeElement === video || video.contains(document.activeElement)) {
-                switch(e.key) {
-                    case ' ':
-                        e.preventDefault();
-                        if (video.paused) {
-                            video.play();
-                        } else {
-                            video.pause();
-                        }
-                        break;
-                    case 'ArrowLeft':
-                        e.preventDefault();
-                        video.currentTime = Math.max(0, video.currentTime - 0.1);
-                        break;
-                    case 'ArrowRight':
-                        e.preventDefault();
-                        video.currentTime = Math.min(video.duration, video.currentTime + 0.1);
-                        break;
-                }
-            }
-        });
-    }
-});
 </script>
 {% endblock %}

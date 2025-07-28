@@ -26,12 +26,17 @@
     }
   },
   "flaw_detection_thresholds": {
-    "elbow_flare_threshold": 15,
-    "knee_bend_variance": 20,
+    "elbow_flare_threshold": 20,
+    "knee_bend_variance": 25,
     "wrist_snap_minimum": 60,
-    "balance_lean_max": 10,
-    "release_point_variance": 30,
-    "shooting_rhythm_variance": 200
+    "balance_lean_max": 15,
+    "release_point_variance": 40,
+    "shooting_rhythm_variance": 300,
+    "guide_hand_thumb_flick_max": 15,
+    "guide_hand_position_deviation": 25,
+    "head_rotation_max": 12,
+    "motion_smoothness_threshold": 0.5,
+    "follow_through_min_duration": 250
   },
   "common_remedies": {
     "elbow_extension": "Focus on fully extending your elbow towards the basket. Imagine reaching into a cookie jar on a high shelf.",
@@ -47,11 +52,17 @@
     "elbow_flare": "Keep your shooting elbow directly under the ball. Practice the 'wall drill' to improve elbow alignment.",
     "insufficient_knee_bend": "Get lower into your shot. Bend your knees to at least 110 degrees for proper power generation.",
     "excessive_knee_bend": "Don't over-bend your knees. Find a comfortable, repeatable stance around 120 degrees.",
-    "poor_follow_through": "Snap your wrist aggressively downward. Practice the 'bed shooting' drill lying on your back.",
-    "rushing_shot": "Slow down your shooting motion. Practice counting '1-2-shoot' to develop proper rhythm.",
-    "balance_issues": "Improve your base and core stability. Practice shooting on one foot to enhance balance.",
-    "guide_hand_interference": "Keep your guide hand passive. Practice one-handed shooting to isolate your shooting hand.",
-    "inconsistent_release_point": "Develop muscle memory for your shooting pocket. Practice form shooting close to the basket."
+    "poor_wrist_snap": "Snap your wrist aggressively downward after release. Your fingers should point to the floor.",
+    "guide_hand_thumb_flick": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+    "guide_hand_under_ball": "Position your guide hand on the side of the ball, not underneath. Think 'passenger, not driver.'",
+    "guide_hand_on_top": "Move your guide hand to the side of the ball, not on top. This allows for cleaner release and better ball control.",
+    "shot_lacks_fluidity": "Work on smooth, continuous motion. No pauses or jerky movements from start to finish.",
+    "eye_tracking_poor": "Lock your eyes on the back of the rim. Don't follow the ball's flight with your eyes.",
+    "inconsistent_release_point": "Practice your shooting pocket. Release from the same spot above your forehead every time.",
+    "follow_through_early_drop": "Hold your follow-through until the ball hits the rim. Think 'reach into the cookie jar.'",
+    "rushing_shot": "Slow down your shooting motion. Count '1-2-shoot' to develop better rhythm.",
+    "balance_issues": "Focus on your base. Keep your feet shoulder-width apart and land in the same spot.",
+    "guide_hand_interference": "Keep your guide hand passive. Practice one-handed shooting to isolate your shooting hand."
   },
   "flaw_descriptions": {
     "elbow_flare": {
