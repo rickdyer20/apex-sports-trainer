@@ -1,0 +1,164 @@
+{
+  "video_path": "results\\244e286b-8cc1-4a8e-b10d-97bceb50149f_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-07-28T12:22:38.511336",
+  "flaw_stills": [
+    {
+      "file_path": "results\\244e286b-8cc1-4a8e-b10d-97bceb50149f_flaw_shot_lacks_fluidity_frame_8.png",
+      "filename": "244e286b-8cc1-4a8e-b10d-97bceb50149f_flaw_shot_lacks_fluidity_frame_8.png",
+      "flaw_data": {
+        "flaw_type": "shot_lacks_fluidity",
+        "frame_number": 8,
+        "phase": "Release",
+        "severity": 17.791318739186035,
+        "description": "Jerky or rushed shooting motion lacks smooth rhythm",
+        "plain_language": "Your shot motion is not fluid. Focus on a smooth, rhythmic motion from start to finish.",
+        "coaching_tip": "Work on smooth, continuous motion. No pauses or jerky movements from start to finish.",
+        "drill_suggestion": "Slow motion shooting: Practice entire shooting motion in exaggerated slow motion.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 8
+    },
+    {
+      "file_path": "results\\244e286b-8cc1-4a8e-b10d-97bceb50149f_flaw_guide_hand_under_ball_frame_11.png",
+      "filename": "244e286b-8cc1-4a8e-b10d-97bceb50149f_flaw_guide_hand_under_ball_frame_11.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_under_ball",
+        "frame_number": 11,
+        "phase": "Release",
+        "severity": 29.185309623362603,
+        "description": "Guide hand positioned underneath ball instead of on side",
+        "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+        "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+        "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 11
+    },
+    {
+      "file_path": "results\\244e286b-8cc1-4a8e-b10d-97bceb50149f_flaw_guide_hand_thumb_flick_frame_12.png",
+      "filename": "244e286b-8cc1-4a8e-b10d-97bceb50149f_flaw_guide_hand_thumb_flick_frame_12.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_thumb_flick",
+        "frame_number": 12,
+        "phase": "Follow-Through",
+        "severity": 17.09129280796226,
+        "description": "Guide hand thumb interfering with ball trajectory during follow-through",
+        "plain_language": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+        "coaching_tip": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+        "drill_suggestion": "One-handed shooting: Practice with only your shooting hand to eliminate guide hand interference.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 12
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "shot_timing_inefficient",
+      "frame_number": 8,
+      "phase": "Release",
+      "severity": 37.79131873918604,
+      "description": "Shot timing could be more efficient for better rhythm",
+      "plain_language": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "coaching_tip": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "drill_suggestion": "Metronome shooting: Practice with consistent rhythm - catch, dip, and shoot with even timing.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "guide_hand_under_ball",
+      "frame_number": 11,
+      "phase": "Release",
+      "severity": 29.185309623362603,
+      "description": "Guide hand positioned underneath ball instead of on side",
+      "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "frame_number": 8,
+      "phase": "Release",
+      "severity": 17.791318739186035,
+      "description": "Jerky or rushed shooting motion lacks smooth rhythm",
+      "plain_language": "Your shot motion is not fluid. Focus on a smooth, rhythmic motion from start to finish.",
+      "coaching_tip": "Work on smooth, continuous motion. No pauses or jerky movements from start to finish.",
+      "drill_suggestion": "Slow motion shooting: Practice entire shooting motion in exaggerated slow motion.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "guide_hand_thumb_flick",
+      "frame_number": 12,
+      "phase": "Follow-Through",
+      "severity": 17.09129280796226,
+      "description": "Guide hand thumb interfering with ball trajectory during follow-through",
+      "plain_language": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+      "coaching_tip": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+      "drill_suggestion": "One-handed shooting: Practice with only your shooting hand to eliminate guide hand interference.",
+      "camera_context": "Observed from front view"
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 27,
+      "key_moment_frame": 27
+    },
+    {
+      "name": "Release",
+      "start_frame": 8,
+      "end_frame": 20,
+      "key_moment_frame": 12
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 10,
+      "end_frame": 24,
+      "key_moment_frame": 12
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 8,
+      "discrepancy": "Shot Timing Inefficient: Shot timing could be more efficient for better rhythm",
+      "ideal_range": "Severity: 37.8/100",
+      "user_value": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "remedy_tips": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "critical_landmarks": [],
+      "severity": 37.79131873918604
+    },
+    {
+      "frame_number": 11,
+      "discrepancy": "Guide Hand Under Ball: Guide hand positioned underneath ball instead of on side",
+      "ideal_range": "Severity: 29.2/100",
+      "user_value": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "remedy_tips": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "critical_landmarks": [],
+      "severity": 29.185309623362603
+    },
+    {
+      "frame_number": 8,
+      "discrepancy": "Shot Lacks Fluidity: Jerky or rushed shooting motion lacks smooth rhythm",
+      "ideal_range": "Severity: 17.8/100",
+      "user_value": "Your shot motion is not fluid. Focus on a smooth, rhythmic motion from start to finish.",
+      "remedy_tips": "Work on smooth, continuous motion. No pauses or jerky movements from start to finish.",
+      "critical_landmarks": [],
+      "severity": 17.791318739186035
+    },
+    {
+      "frame_number": 12,
+      "discrepancy": "Guide Hand Thumb Flick: Guide hand thumb interfering with ball trajectory during follow-through",
+      "ideal_range": "Severity: 17.1/100",
+      "user_value": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+      "remedy_tips": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+      "critical_landmarks": [],
+      "severity": 17.09129280796226
+    }
+  ],
+  "improvement_plan_pdf": {
+    "file_path": "results\\244e286b-8cc1-4a8e-b10d-97bceb50149f_60_Day_Improvement_Plan.pdf",
+    "filename": "244e286b-8cc1-4a8e-b10d-97bceb50149f_60_Day_Improvement_Plan.pdf"
+  }
+}

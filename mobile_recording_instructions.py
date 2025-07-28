@@ -33,7 +33,7 @@ MOBILE_INSTRUCTIONS = {
                 "instruction": "Position yourself 8-10 feet to the side of the shooter",
                 "details": [
                     "The entire shooter should be visible from feet to fingertips",
-                    "Include the basketball hoop in the frame",
+                    "Focus on shooter's form (hoop optional)",
                     "Tap on the shooter to focus the camera"
                 ]
             },
@@ -103,7 +103,7 @@ BEFORE YOU RECORD:
 ✅ Turn phone sideways (landscape mode)  
 ✅ Lock screen rotation to prevent flipping
 ✅ Stand 8-10 feet to the shooter's side
-✅ Make sure hoop is visible in frame
+✅ Focus on shooter's form (hoop optional)
 
 DURING RECORDING:
 ✅ Keep phone steady with both hands

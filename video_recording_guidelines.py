@@ -26,7 +26,7 @@ RECORDING_GUIDELINES = {
                 "details": [
                     "Stand to the side of the shooter (not in front or behind)",
                     "Include the entire body from feet to fingertips",
-                    "Make sure the basket is visible in the frame",
+                    "Focus on shooter's form (basket optional)",
                     "Keep 2-3 feet of space around the shooter"
                 ],
                 "importance": "critical"
@@ -253,7 +253,7 @@ def get_recording_checklist():
         "📱 Phone is held horizontally (landscape mode)",
         "👁️ Standing to the side of the shooter (8-10 feet away)", 
         "🎯 Entire body visible from feet to fingertips",
-        "🏀 Basket is visible in the frame",
+        "🏀 Focus on shooter's form (basket optional)",
         "💡 Good lighting on the shooter",
         "📐 Camera is level and steady",
         "⏱️ Recording starts before the shot begins",

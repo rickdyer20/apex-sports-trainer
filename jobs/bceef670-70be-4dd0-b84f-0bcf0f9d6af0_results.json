@@ -1,0 +1,175 @@
+{
+  "video_path": "results\\bceef670-70be-4dd0-b84f-0bcf0f9d6af0_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-07-27T13:29:11.822123",
+  "flaw_stills": [
+    {
+      "file_path": "results\\bceef670-70be-4dd0-b84f-0bcf0f9d6af0_flaw_elbow_flare_frame_0.png",
+      "filename": "bceef670-70be-4dd0-b84f-0bcf0f9d6af0_flaw_elbow_flare_frame_0.png",
+      "flaw_data": {
+        "flaw_type": "elbow_flare",
+        "frame_number": 0,
+        "phase": "Shot Motion",
+        "severity": 58.187288239571785,
+        "description": "Shooting elbow positioned too far from body",
+        "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+        "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+        "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 0
+    },
+    {
+      "file_path": "results\\bceef670-70be-4dd0-b84f-0bcf0f9d6af0_flaw_guide_hand_under_ball_frame_11.png",
+      "filename": "bceef670-70be-4dd0-b84f-0bcf0f9d6af0_flaw_guide_hand_under_ball_frame_11.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_under_ball",
+        "frame_number": 11,
+        "phase": "Release",
+        "severity": 30.0,
+        "description": "Guide hand positioned underneath ball instead of on side",
+        "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+        "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+        "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 11
+    },
+    {
+      "file_path": "results\\bceef670-70be-4dd0-b84f-0bcf0f9d6af0_flaw_poor_wrist_snap_frame_30.png",
+      "filename": "bceef670-70be-4dd0-b84f-0bcf0f9d6af0_flaw_poor_wrist_snap_frame_30.png",
+      "flaw_data": {
+        "flaw_type": "poor_wrist_snap",
+        "frame_number": 30,
+        "phase": "Follow-Through",
+        "severity": 35.0,
+        "description": "Insufficient wrist snap on follow-through",
+        "plain_language": "Your wrist snap needs improvement. Snap your wrist down aggressively for better backspin and soft touch.",
+        "coaching_tip": "Snap your wrist down aggressively after release. Your fingers should point to the floor.",
+        "drill_suggestion": "Bed shooting: Lie on your back and shoot straight up, focusing on aggressive wrist snap.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 30
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "elbow_flare",
+      "frame_number": 0,
+      "phase": "Shot Motion",
+      "severity": 58.187288239571785,
+      "description": "Shooting elbow positioned too far from body",
+      "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_timing_inefficient",
+      "frame_number": 11,
+      "phase": "Release",
+      "severity": 36.27118644067797,
+      "description": "Shot timing could be more efficient for better rhythm",
+      "plain_language": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "coaching_tip": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "drill_suggestion": "Metronome shooting: Practice with consistent rhythm - catch, dip, and shoot with even timing.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "poor_wrist_snap",
+      "frame_number": 30,
+      "phase": "Follow-Through",
+      "severity": 35.0,
+      "description": "Insufficient wrist snap on follow-through",
+      "plain_language": "Your wrist snap needs improvement. Snap your wrist down aggressively for better backspin and soft touch.",
+      "coaching_tip": "Snap your wrist down aggressively after release. Your fingers should point to the floor.",
+      "drill_suggestion": "Bed shooting: Lie on your back and shoot straight up, focusing on aggressive wrist snap.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "guide_hand_under_ball",
+      "frame_number": 11,
+      "phase": "Release",
+      "severity": 30.0,
+      "description": "Guide hand positioned underneath ball instead of on side",
+      "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 25,
+      "severity": 100,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 2.2/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 2.200000000000003,
+        "acceleration_spikes": 7,
+        "rhythm_breaks": 2
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 6,
+      "key_moment_frame": 6
+    },
+    {
+      "name": "Release",
+      "start_frame": 11,
+      "end_frame": 26,
+      "key_moment_frame": 11
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 27,
+      "end_frame": 35,
+      "key_moment_frame": 29
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 0,
+      "discrepancy": "Elbow Flare: Shooting elbow positioned too far from body",
+      "ideal_range": "Severity: 58.2/100",
+      "user_value": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "remedy_tips": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "critical_landmarks": [],
+      "severity": 58.187288239571785
+    },
+    {
+      "frame_number": 11,
+      "discrepancy": "Shot Timing Inefficient: Shot timing could be more efficient for better rhythm",
+      "ideal_range": "Severity: 36.3/100",
+      "user_value": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "remedy_tips": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "critical_landmarks": [],
+      "severity": 36.27118644067797
+    },
+    {
+      "frame_number": 30,
+      "discrepancy": "Poor Wrist Snap: Insufficient wrist snap on follow-through",
+      "ideal_range": "Severity: 35.0/100",
+      "user_value": "Your wrist snap needs improvement. Snap your wrist down aggressively for better backspin and soft touch.",
+      "remedy_tips": "Snap your wrist down aggressively after release. Your fingers should point to the floor.",
+      "critical_landmarks": [],
+      "severity": 35.0
+    },
+    {
+      "frame_number": 11,
+      "discrepancy": "Guide Hand Under Ball: Guide hand positioned underneath ball instead of on side",
+      "ideal_range": "Severity: 30.0/100",
+      "user_value": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "remedy_tips": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "critical_landmarks": [],
+      "severity": 30.0
+    }
+  ],
+  "improvement_plan_pdf": null
+}

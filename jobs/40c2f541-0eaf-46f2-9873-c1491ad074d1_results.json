@@ -1,0 +1,175 @@
+{
+  "video_path": "results\\40c2f541-0eaf-46f2-9873-c1491ad074d1_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-07-27T14:13:37.541398",
+  "flaw_stills": [
+    {
+      "file_path": "results\\40c2f541-0eaf-46f2-9873-c1491ad074d1_flaw_elbow_flare_frame_0.png",
+      "filename": "40c2f541-0eaf-46f2-9873-c1491ad074d1_flaw_elbow_flare_frame_0.png",
+      "flaw_data": {
+        "flaw_type": "elbow_flare",
+        "frame_number": 0,
+        "phase": "Shot Motion",
+        "severity": 58.187288239571785,
+        "description": "Shooting elbow positioned too far from body",
+        "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+        "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+        "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 0
+    },
+    {
+      "file_path": "results\\40c2f541-0eaf-46f2-9873-c1491ad074d1_flaw_follow_through_timing_frame_9.png",
+      "filename": "40c2f541-0eaf-46f2-9873-c1491ad074d1_flaw_follow_through_timing_frame_9.png",
+      "flaw_data": {
+        "flaw_type": "follow_through_timing",
+        "frame_number": 9,
+        "phase": "Follow-Through",
+        "severity": 34.584709356344824,
+        "description": "Follow-through timing could be improved for better consistency",
+        "plain_language": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+        "coaching_tip": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+        "drill_suggestion": "Follow-through freeze: Hold your follow-through position for 3 seconds after each shot.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 9
+    },
+    {
+      "file_path": "results\\40c2f541-0eaf-46f2-9873-c1491ad074d1_flaw_guide_hand_under_ball_frame_11.png",
+      "filename": "40c2f541-0eaf-46f2-9873-c1491ad074d1_flaw_guide_hand_under_ball_frame_11.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_under_ball",
+        "frame_number": 11,
+        "phase": "Release",
+        "severity": 30.0,
+        "description": "Guide hand positioned underneath ball instead of on side",
+        "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+        "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+        "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 11
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "elbow_flare",
+      "frame_number": 0,
+      "phase": "Shot Motion",
+      "severity": 58.187288239571785,
+      "description": "Shooting elbow positioned too far from body",
+      "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_timing_inefficient",
+      "frame_number": 11,
+      "phase": "Release",
+      "severity": 36.27118644067797,
+      "description": "Shot timing could be more efficient for better rhythm",
+      "plain_language": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "coaching_tip": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "drill_suggestion": "Metronome shooting: Practice with consistent rhythm - catch, dip, and shoot with even timing.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "follow_through_timing",
+      "frame_number": 9,
+      "phase": "Follow-Through",
+      "severity": 34.584709356344824,
+      "description": "Follow-through timing could be improved for better consistency",
+      "plain_language": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "coaching_tip": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "drill_suggestion": "Follow-through freeze: Hold your follow-through position for 3 seconds after each shot.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "guide_hand_under_ball",
+      "frame_number": 11,
+      "phase": "Release",
+      "severity": 30.0,
+      "description": "Guide hand positioned underneath ball instead of on side",
+      "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 25,
+      "severity": 100,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 2.2/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 2.200000000000003,
+        "acceleration_spikes": 7,
+        "rhythm_breaks": 2
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 6,
+      "key_moment_frame": 6
+    },
+    {
+      "name": "Release",
+      "start_frame": 11,
+      "end_frame": 26,
+      "key_moment_frame": 11
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 9,
+      "end_frame": 17,
+      "key_moment_frame": 11
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 0,
+      "discrepancy": "Elbow Flare: Shooting elbow positioned too far from body",
+      "ideal_range": "Severity: 58.2/100",
+      "user_value": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "remedy_tips": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "critical_landmarks": [],
+      "severity": 58.187288239571785
+    },
+    {
+      "frame_number": 11,
+      "discrepancy": "Shot Timing Inefficient: Shot timing could be more efficient for better rhythm",
+      "ideal_range": "Severity: 36.3/100",
+      "user_value": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "remedy_tips": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "critical_landmarks": [],
+      "severity": 36.27118644067797
+    },
+    {
+      "frame_number": 9,
+      "discrepancy": "Follow Through Timing: Follow-through timing could be improved for better consistency",
+      "ideal_range": "Severity: 34.6/100",
+      "user_value": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "remedy_tips": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "critical_landmarks": [],
+      "severity": 34.584709356344824
+    },
+    {
+      "frame_number": 11,
+      "discrepancy": "Guide Hand Under Ball: Guide hand positioned underneath ball instead of on side",
+      "ideal_range": "Severity: 30.0/100",
+      "user_value": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "remedy_tips": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "critical_landmarks": [],
+      "severity": 30.0
+    }
+  ],
+  "improvement_plan_pdf": null
+}

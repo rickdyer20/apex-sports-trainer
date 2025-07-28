@@ -1,0 +1,134 @@
+{
+  "release_elbow_angle": {
+    "min": 160,
+    "max": 180,
+    "description": "Ideal elbow extension at ball release for optimal arc and accuracy"
+  },
+  "load_knee_angle": {
+    "min": 110,
+    "max": 130,
+    "description": "Optimal knee bend during loading phase for power generation"
+  },
+  "follow_through_wrist_snap_angle": {
+    "min": 70,
+    "max": 90,
+    "description": "Proper wrist snap angle for backspin and soft shooting touch"
+  },
+  "balance_foot_position": {
+    "max_lateral_drift": 6,
+    "description": "Maximum inches of lateral foot movement from takeoff to landing"
+  },
+  "shooting_rhythm": {
+    "load_to_release_time_ms": {
+      "min": 800,
+      "max": 1200,
+      "description": "Optimal timing from deepest knee bend to ball release"
+    }
+  },
+  "flaw_detection_thresholds": {
+    "elbow_flare_threshold": 15,
+    "knee_bend_variance": 20,
+    "wrist_snap_minimum": 60,
+    "balance_lean_max": 10,
+    "release_point_variance": 30,
+    "shooting_rhythm_variance": 200
+  },
+  "common_remedies": {
+    "elbow_extension": "Focus on fully extending your elbow towards the basket. Imagine reaching into a cookie jar on a high shelf.",
+    "knee_drive": "Explode upwards by pushing through your heels. Think 'jump up, not forward'.",
+    "wrist_snap": "Finish with your fingers pointing down at the rim after release. Your hand should look like you're reaching into a cookie jar.",
+    "balance": "Land in the same spot you jumped from, maintaining good balance. Practice shooting with your eyes closed to improve proprioception.",
+    "follow_through": "Hold your follow-through until the ball hits the rim. This ensures consistent release mechanics.",
+    "arc": "Aim for 45-50 degree arc on your shot. The ball should peak about 2-3 feet above the rim.",
+    "base": "Keep your feet shoulder-width apart with your shooting foot slightly forward for stability.",
+    "guide_hand": "Your off-hand should be on the side of the ball, not underneath. Remove it just before release.",
+    "shooting_pocket": "Bring the ball to the same shooting pocket every time - typically around your forehead area.",
+    "eyes_on_target": "Focus on the back of the rim throughout your entire shooting motion.",
+    "elbow_flare": "Keep your shooting elbow directly under the ball. Practice the 'wall drill' to improve elbow alignment.",
+    "insufficient_knee_bend": "Get lower into your shot. Bend your knees to at least 110 degrees for proper power generation.",
+    "excessive_knee_bend": "Don't over-bend your knees. Find a comfortable, repeatable stance around 120 degrees.",
+    "poor_follow_through": "Snap your wrist aggressively downward. Practice the 'bed shooting' drill lying on your back.",
+    "rushing_shot": "Slow down your shooting motion. Practice counting '1-2-shoot' to develop proper rhythm.",
+    "balance_issues": "Improve your base and core stability. Practice shooting on one foot to enhance balance.",
+    "guide_hand_interference": "Keep your guide hand passive. Practice one-handed shooting to isolate your shooting hand.",
+    "inconsistent_release_point": "Develop muscle memory for your shooting pocket. Practice form shooting close to the basket."
+  },
+  "flaw_descriptions": {
+    "elbow_flare": {
+      "technical": "Shooting elbow positioned too far laterally from the body centerline",
+      "plain_language": "Your shooting elbow is sticking out to the side instead of staying under the ball. This makes your shot less accurate and harder to repeat consistently.",
+      "impact": "Reduces shooting accuracy by 15-25% and creates inconsistent ball rotation"
+    },
+    "insufficient_knee_bend": {
+      "technical": "Knee flexion below optimal range for power generation",
+      "plain_language": "You're not bending your knees enough to generate proper power. This limits your shooting range and makes it harder to shoot from distance.",
+      "impact": "Reduces shooting range by 2-4 feet and increases effort required for long shots"
+    },
+    "excessive_knee_bend": {
+      "technical": "Knee flexion exceeds optimal range, creating inefficient energy transfer",
+      "plain_language": "You're bending your knees too much, which wastes energy and can make your shot timing inconsistent.",
+      "impact": "Creates inconsistent shot timing and wastes 20-30% of available energy"
+    },
+    "poor_follow_through": {
+      "technical": "Insufficient wrist flexion during ball release phase",
+      "plain_language": "Your wrist isn't snapping down enough after you release the ball. This reduces backspin and makes shots hit the rim harder.",
+      "impact": "Reduces backspin by 30-40% and decreases soft touch on shots"
+    },
+    "rushing_shot": {
+      "technical": "Shot release timing below optimal rhythm parameters",
+      "plain_language": "You're shooting too quickly without proper rhythm. Taking your time will improve consistency and accuracy.",
+      "impact": "Reduces shooting accuracy by 20-35% due to mechanical inconsistencies"
+    },
+    "balance_issues": {
+      "technical": "Center of mass displacement exceeds stability thresholds",
+      "plain_language": "Your balance is off during your shot. Good balance is crucial for consistent shooting accuracy.",
+      "impact": "Reduces shooting accuracy by 25-40% and increases fatigue"
+    },
+    "guide_hand_interference": {
+      "technical": "Non-shooting hand affecting ball trajectory during release",
+      "plain_language": "Your guide hand (non-shooting hand) is pushing the ball instead of just guiding it. This causes shots to go left or right.",
+      "impact": "Creates 10-15% lateral deviation in shot direction"
+    },
+    "inconsistent_release_point": {
+      "technical": "Release point position variance exceeds repeatability standards",
+      "plain_language": "You're releasing the ball from different positions each time. Consistency in release point is key to accurate shooting.",
+      "impact": "Increases shot dispersion by 40-60% both horizontally and vertically"
+    }
+  },
+  "phase_timing": {
+    "load_phase": {
+      "description": "Preparatory phase where shooter loads energy",
+      "typical_duration_frames": 15,
+      "key_markers": ["deepest_knee_bend", "ball_set_position"]
+    },
+    "ascent_phase": {
+      "description": "Upward movement phase with leg drive",
+      "typical_duration_frames": 8,
+      "key_markers": ["knee_extension_start", "elbow_elevation"]
+    },
+    "release_phase": {
+      "description": "Ball release at peak of shooting motion",
+      "typical_duration_frames": 3,
+      "key_markers": ["elbow_extension_peak", "wrist_snap_initiation"]
+    },
+    "follow_through_phase": {
+      "description": "Post-release motion and landing",
+      "typical_duration_frames": 10,
+      "key_markers": ["wrist_snap_completion", "landing"]
+    }
+  },
+  "advanced_metrics": {
+    "shooting_hand_speed": {
+      "optimal_range_pixels_per_second": [200, 400],
+      "description": "Wrist velocity during release phase"
+    },
+    "leg_drive_power": {
+      "knee_extension_velocity_threshold": 150,
+      "description": "Minimum knee extension speed for proper power generation"
+    },
+    "consistent_release_point": {
+      "max_variance_pixels": 20,
+      "description": "Maximum acceptable variance in release point location"
+    }
+  }
+}

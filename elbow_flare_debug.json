@@ -1,0 +1,38 @@
+[
+  {
+    "frame": 5,
+    "time_seconds": 1.6534391534391535,
+    "elbow_angle": 76.9393556163822,
+    "elbow_flare_ratio": 104.9618320610687,
+    "elbow_lateral_angle": 120.34703353180082,
+    "shoulder_width_px": 131,
+    "elbow_deviation_px": 137.5,
+    "visibility_right_elbow": 0.9995290040969849,
+    "visibility_right_shoulder": 0.9999059438705444,
+    "visibility_left_shoulder": 0.9997660517692566
+  },
+  {
+    "frame": 10,
+    "time_seconds": 3.306878306878307,
+    "elbow_angle": 157.43517117499596,
+    "elbow_flare_ratio": 51.55038759689923,
+    "elbow_lateral_angle": 146.89722627337792,
+    "shoulder_width_px": 129,
+    "elbow_deviation_px": 66.5,
+    "visibility_right_elbow": 0.9993074536323547,
+    "visibility_right_shoulder": 0.9998913407325745,
+    "visibility_left_shoulder": 0.9997276663780212
+  },
+  {
+    "frame": 15,
+    "time_seconds": 4.9603174603174605,
+    "elbow_angle": 177.48422875485528,
+    "elbow_flare_ratio": 71.8543046357616,
+    "elbow_lateral_angle": 48.4978351067725,
+    "shoulder_width_px": 151,
+    "elbow_deviation_px": 108.5,
+    "visibility_right_elbow": 0.9992276430130005,
+    "visibility_right_shoulder": 0.9999017119407654,
+    "visibility_left_shoulder": 0.9997522830963135
+  }
+]

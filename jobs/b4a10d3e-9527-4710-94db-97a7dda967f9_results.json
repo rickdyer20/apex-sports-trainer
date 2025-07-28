@@ -1,0 +1,191 @@
+{
+  "video_path": "results\\b4a10d3e-9527-4710-94db-97a7dda967f9_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-07-27T12:39:37.102058",
+  "flaw_stills": [
+    {
+      "file_path": "results\\b4a10d3e-9527-4710-94db-97a7dda967f9_flaw_elbow_flare_frame_0.png",
+      "filename": "b4a10d3e-9527-4710-94db-97a7dda967f9_flaw_elbow_flare_frame_0.png",
+      "flaw_data": {
+        "flaw_type": "elbow_flare",
+        "frame_number": 0,
+        "phase": "Shot Motion",
+        "severity": 56.47009447340991,
+        "description": "Shooting elbow positioned too far from body",
+        "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+        "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+        "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 0
+    },
+    {
+      "file_path": "results\\b4a10d3e-9527-4710-94db-97a7dda967f9_flaw_guide_hand_under_ball_frame_19.png",
+      "filename": "b4a10d3e-9527-4710-94db-97a7dda967f9_flaw_guide_hand_under_ball_frame_19.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_under_ball",
+        "frame_number": 19,
+        "phase": "Release",
+        "severity": 30.0,
+        "description": "Guide hand positioned underneath ball instead of on side",
+        "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+        "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+        "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 19
+    },
+    {
+      "file_path": "results\\b4a10d3e-9527-4710-94db-97a7dda967f9_flaw_guide_hand_thumb_flick_frame_37.png",
+      "filename": "b4a10d3e-9527-4710-94db-97a7dda967f9_flaw_guide_hand_thumb_flick_frame_37.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_thumb_flick",
+        "frame_number": 37,
+        "phase": "Follow-Through",
+        "severity": 20.188952534281754,
+        "description": "Guide hand thumb interfering with ball trajectory during follow-through",
+        "plain_language": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+        "coaching_tip": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+        "drill_suggestion": "One-handed shooting: Practice with only your shooting hand to eliminate guide hand interference.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 37
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "elbow_flare",
+      "frame_number": 0,
+      "phase": "Shot Motion",
+      "severity": 56.47009447340991,
+      "description": "Shooting elbow positioned too far from body",
+      "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_timing_inefficient",
+      "frame_number": 19,
+      "phase": "Release",
+      "severity": 36.7376707571197,
+      "description": "Shot timing could be more efficient for better rhythm",
+      "plain_language": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "coaching_tip": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "drill_suggestion": "Metronome shooting: Practice with consistent rhythm - catch, dip, and shoot with even timing.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "guide_hand_under_ball",
+      "frame_number": 19,
+      "phase": "Release",
+      "severity": 30.0,
+      "description": "Guide hand positioned underneath ball instead of on side",
+      "plain_language": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "coaching_tip": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "drill_suggestion": "Tennis ball drill: Hold a tennis ball with your guide hand on the side while shooting with the other.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "guide_hand_thumb_flick",
+      "frame_number": 37,
+      "phase": "Follow-Through",
+      "severity": 20.188952534281754,
+      "description": "Guide hand thumb interfering with ball trajectory during follow-through",
+      "plain_language": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+      "coaching_tip": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+      "drill_suggestion": "One-handed shooting: Practice with only your shooting hand to eliminate guide hand interference.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 53,
+      "severity": 84.40842787682334,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 0.0/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 0,
+        "acceleration_spikes": 10,
+        "rhythm_breaks": 2
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 12,
+      "key_moment_frame": 12
+    },
+    {
+      "name": "Release",
+      "start_frame": 19,
+      "end_frame": 34,
+      "key_moment_frame": 19
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 35,
+      "end_frame": 43,
+      "key_moment_frame": 37
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 0,
+      "discrepancy": "Elbow Flare: Shooting elbow positioned too far from body",
+      "ideal_range": "Severity: 56.5/100",
+      "user_value": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "remedy_tips": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "critical_landmarks": [],
+      "severity": 56.47009447340991
+    },
+    {
+      "frame_number": 19,
+      "discrepancy": "Shot Timing Inefficient: Shot timing could be more efficient for better rhythm",
+      "ideal_range": "Severity: 36.7/100",
+      "user_value": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "remedy_tips": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "critical_landmarks": [],
+      "severity": 36.7376707571197
+    },
+    {
+      "frame_number": 19,
+      "discrepancy": "Guide Hand Under Ball: Guide hand positioned underneath ball instead of on side",
+      "ideal_range": "Severity: 30.0/100",
+      "user_value": "Your guide hand is too far under the ball. Keep it on the side for proper support without interference.",
+      "remedy_tips": "Position your guide hand on the side of the ball, not underneath. Think \"passenger, not driver.\"",
+      "critical_landmarks": [],
+      "severity": 30.0
+    },
+    {
+      "frame_number": 37,
+      "discrepancy": "Guide Hand Thumb Flick: Guide hand thumb interfering with ball trajectory during follow-through",
+      "ideal_range": "Severity: 20.2/100",
+      "user_value": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+      "remedy_tips": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+      "critical_landmarks": [],
+      "severity": 20.188952534281754
+    },
+    {
+      "frame_number": 19,
+      "discrepancy": "Elbow extension at release (156.8\u00b0) is outside the ideal range (160-180\u00b0).",
+      "ideal_range": {
+        "min": 160,
+        "max": 180,
+        "description": "Ideal elbow extension at ball release for optimal arc and accuracy"
+      },
+      "user_value": 156.77727535183655,
+      "remedy_tips": "Focus on fully extending your elbow towards the basket. Imagine reaching into a cookie jar on a high shelf.",
+      "critical_landmarks": [
+        12,
+        14,
+        16
+      ]
+    }
+  ],
+  "improvement_plan_pdf": null
+}
