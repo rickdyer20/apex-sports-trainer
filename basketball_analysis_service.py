@@ -1121,24 +1121,35 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
             if 'elbow_flare_front_view' in frame_data.metrics:
                 elbow_flare_ratio = frame_data.metrics['elbow_flare_front_view']
                 logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_flare_ratio={elbow_flare_ratio}%")
-                # Only detect significant lateral deviation (elbow way out to the side)
-                if elbow_flare_ratio > 40:  # Threshold for meaningful flare (was 30, now more conservative)  
-                    front_view_severity = min((elbow_flare_ratio - 30) * 1.8, 60)  # Reasonable sensitivity
+                # Detect lateral deviation - lowered threshold for better sensitivity
+                if elbow_flare_ratio > 25:  # Threshold for meaningful flare (lowered from 40 for better detection)  
+                    front_view_severity = min((elbow_flare_ratio - 20) * 2.0, 60)  # Adjusted for new threshold
                     severity = max(severity, front_view_severity)
                     logging.info(f"ELBOW FLARE DETECTED - Front view: ratio={elbow_flare_ratio}%, severity={front_view_severity}")
+                else:
+                    logging.debug(f"ELBOW FLARE NOT DETECTED - Front view: ratio={elbow_flare_ratio}% below threshold (25%)")
                     
             # Alternative front view detection using lateral angle  
             if 'elbow_lateral_angle' in frame_data.metrics:
                 lateral_angle = frame_data.metrics['elbow_lateral_angle']
                 logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_lateral_angle={lateral_angle}°")
-                # Only detect significant lateral movement during shooting motion
-                if lateral_angle > 15:  # Reasonable threshold for lateral deviation (was 5, too aggressive)
-                    angle_severity = min((lateral_angle - 10) * 2.5, 50)  # Reasonable sensitivity
+                # Detect lateral movement during shooting motion - lowered threshold
+                if lateral_angle > 10:  # Lowered threshold for better sensitivity (was 15)
+                    angle_severity = min((lateral_angle - 8) * 3.0, 50)  # Adjusted sensitivity
                     severity = max(severity, angle_severity)
                     logging.info(f"ELBOW FLARE DETECTED - Lateral angle: angle={lateral_angle}°, severity={angle_severity}")
+                else:
+                    logging.debug(f"ELBOW FLARE NOT DETECTED - Lateral angle: {lateral_angle}° below threshold (10°)")
+            else:
+                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_lateral_angle metric not available")
             
             # Add summary debug info
             if severity == 0:
+                # Check what metrics are available for debugging
+                available_metrics = list(frame_data.metrics.keys())
+                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: No detection, available metrics: {available_metrics}")
+                if 'elbow_flare_front_view' not in frame_data.metrics and 'elbow_lateral_angle' not in frame_data.metrics:
+                    logging.warning(f"ELBOW FLARE WARNING - Frame {frame_num}: No elbow flare metrics calculated - may indicate pose detection issues")
                 logging.debug(f"NO ELBOW FLARE detected in frame {frame_num} ({current_phase_name} phase)")
             else:
                 logging.info(f"ELBOW FLARE total severity: {severity} in frame {frame_num} ({current_phase_name} phase)")
