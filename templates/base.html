@@ -8,38 +8,246 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
     <style>
+        :root {
+            --apex-orange: #FF6B35;
+            --apex-blue: #4A90E2;
+            --apex-dark: #2C3E50;
+            --apex-light: #ECF0F1;
+            --apex-gradient: linear-gradient(135deg, #4A90E2, #FF6B35);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
         .navbar-brand {
             font-weight: bold;
+            display: flex;
+            align-items: center;
         }
+        
+        .navbar-brand img {
+            height: 40px;
+            margin-right: 10px;
+        }
+        
         .hero-section {
-            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            background: var(--apex-gradient);
             color: white;
-            padding: 4rem 0;
+            padding: 5rem 0;
+            position: relative;
+            overflow: hidden;
         }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="40" r="1.5" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="70" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="70" cy="80" r="2.5" fill="rgba(255,255,255,0.1)"/></svg>');
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
         .feature-card {
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-radius: 15px;
         }
+        
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
         }
+        
+        .feature-icon {
+            color: var(--apex-blue);
+            background: linear-gradient(45deg, var(--apex-blue), var(--apex-orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
         .upload-area {
             border: 3px dashed #dee2e6;
-            border-radius: 10px;
+            border-radius: 20px;
             padding: 3rem;
             text-align: center;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
+            background: linear-gradient(45deg, rgba(74, 144, 226, 0.05), rgba(255, 107, 53, 0.05));
         }
+        
         .upload-area:hover {
-            border-color: #ff6b35;
+            border-color: var(--apex-orange);
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(255, 107, 53, 0.2);
         }
+        
+        .btn-primary {
+            background: var(--apex-gradient);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3);
+        }
+        
+        .btn-outline-primary {
+            border: 2px solid var(--apex-blue);
+            color: var(--apex-blue);
+            border-radius: 25px;
+            padding: 10px 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-outline-primary:hover {
+            background: var(--apex-gradient);
+            border-color: transparent;
+            transform: translateY(-2px);
+        }
+        
         .status-badge {
             font-size: 0.9rem;
+            border-radius: 20px;
+            padding: 8px 16px;
         }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        
+        .text-primary {
+            color: var(--apex-blue) !important;
+        }
+        
+        .bg-primary {
+            background: var(--apex-gradient) !important;
+        }
+        
         footer {
-            background-color: #343a40;
+            background: var(--apex-dark);
             color: white;
-            padding: 2rem 0;
+            padding: 3rem 0;
             margin-top: 4rem;
+        }
+        
+        .navbar-dark {
+            background: var(--apex-dark) !important;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+        
+        .progress-bar {
+            background: var(--apex-gradient);
+        }
+        
+        .alert-warning {
+            background: linear-gradient(45deg, rgba(255, 107, 53, 0.1), rgba(255, 193, 7, 0.1));
+            border: 1px solid var(--apex-orange);
+            border-radius: 10px;
+        }
+        
+        .alert-info {
+            background: linear-gradient(45deg, rgba(74, 144, 226, 0.1), rgba(23, 162, 184, 0.1));
+            border: 1px solid var(--apex-blue);
+            border-radius: 10px;
+        }
+        
+        .hero-image-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .hero-image-container img {
+            filter: drop-shadow(0 10px 30px rgba(0,0,0,0.3));
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .apex-title-gradient {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .feature-highlight {
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-highlight:hover {
+            transform: translateY(-5px);
+        }
+        
+        .feature-icon-wrapper {
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-highlight:hover .feature-icon-wrapper {
+            transform: scale(1.1);
+        }
+        
+        .upload-area-enhanced {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-area-enhanced:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .icon-circle-60 {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .icon-circle-100 {
+            width: 100px;
+            height: 100px;
+        }
+        
+        .icon-circle-80 {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .mobile-rotate {
+            transform: rotate(90deg);
+        }
+        
+        .file-input-overlay {
+            cursor: pointer;
+        }
+        
+        .section-divider {
+            width: 60px;
+            height: 4px;
+            background: var(--apex-gradient);
+            border-radius: 2px;
         }
     </style>
 </head>
@@ -48,8 +256,8 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-basketball-ball me-2"></i>
-                Basketball Shot Analysis
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="ApexSports Trainer Logo">
+                ApexSports Trainer
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -98,18 +306,102 @@
     <!-- Footer -->
     <footer class="bg-dark text-white">
         <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <h5><i class="fas fa-basketball-ball me-2"></i>Basketball Shot Analysis</h5>
-                    <p class="mb-0">Professional basketball shooting form analysis using computer vision and biomechanical assessment.</p>
+            <div class="row py-5">
+                <div class="col-lg-4 mb-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <img src="{{ url_for('static', filename='logo.png') }}" alt="ApexSports Trainer" style="height: 50px;" class="me-3">
+                        <div>
+                            <h4 class="mb-0 fw-bold">ApexSports Trainer</h4>
+                            <small class="text-muted">Elevate Your Game</small>
+                        </div>
+                    </div>
+                    <p class="text-light opacity-75">Professional basketball shooting analysis powered by advanced AI computer vision and biomechanical expertise.</p>
+                    <div class="d-flex gap-3">
+                        <a href="#" class="text-light opacity-75 hover-opacity-100" style="text-decoration: none;">
+                            <i class="fab fa-facebook-f fa-lg"></i>
+                        </a>
+                        <a href="#" class="text-light opacity-75 hover-opacity-100" style="text-decoration: none;">
+                            <i class="fab fa-twitter fa-lg"></i>
+                        </a>
+                        <a href="#" class="text-light opacity-75 hover-opacity-100" style="text-decoration: none;">
+                            <i class="fab fa-instagram fa-lg"></i>
+                        </a>
+                        <a href="#" class="text-light opacity-75 hover-opacity-100" style="text-decoration: none;">
+                            <i class="fab fa-youtube fa-lg"></i>
+                        </a>
+                    </div>
                 </div>
-                <div class="col-md-6 text-md-end">
-                    <h6>Technologies</h6>
-                    <p class="mb-0">
-                        <small>
-                            MediaPipe • OpenCV • Flask • Bootstrap<br>
-                            Computer Vision • Biomechanical Analysis
+                
+                <div class="col-lg-2 col-md-4 mb-4">
+                    <h6 class="text-uppercase fw-bold mb-3" style="color: var(--apex-orange);">Features</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">Video Analysis</a></li>
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">Form Detection</a></li>
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">Progress Reports</a></li>
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">AI Coaching</a></li>
+                    </ul>
+                </div>
+                
+                <div class="col-lg-2 col-md-4 mb-4">
+                    <h6 class="text-uppercase fw-bold mb-3" style="color: var(--apex-blue);">Support</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">Help Center</a></li>
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">Guidelines</a></li>
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">Contact Us</a></li>
+                        <li class="mb-2"><a href="#" class="text-light text-decoration-none opacity-75 hover-opacity-100">FAQ</a></li>
+                    </ul>
+                </div>
+                
+                <div class="col-lg-4 col-md-4 mb-4">
+                    <h6 class="text-uppercase fw-bold mb-3" style="color: var(--apex-blue);">Technology Stack</h6>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-eye me-2 text-primary"></i>
+                                <small>MediaPipe</small>
+                            </div>
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-video me-2 text-success"></i>
+                                <small>OpenCV</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-server me-2 text-warning"></i>
+                                <small>Flask</small>
+                            </div>
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-brain me-2 text-info"></i>
+                                <small>AI Vision</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 p-3 rounded" style="background: linear-gradient(45deg, rgba(74, 144, 226, 0.1), rgba(255, 107, 53, 0.1)); border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <small class="text-light">
+                            <i class="fas fa-shield-alt me-2 text-success"></i>
+                            <strong>Secure & Private</strong><br>
+                            Your videos are processed securely and never stored permanently.
                         </small>
+                    </div>
+                </div>
+            </div>
+            
+            <hr class="my-4" style="border-color: rgba(255, 255, 255, 0.1);">
+            
+            <div class="row align-items-center py-3">
+                <div class="col-md-6 text-center text-md-start">
+                    <small class="text-muted">
+                        © 2025 ApexSports Trainer. All rights reserved.
+                    </small>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <small class="text-muted">
+                        Made with <i class="fas fa-heart text-danger"></i> for basketball excellence
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
                     </p>
                 </div>
             </div>
