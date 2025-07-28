@@ -235,8 +235,8 @@ def process_video_async(job_id, video_path, ideal_data):
         raise TimeoutError("Analysis timeout - processing took too long")
     
     try:
-        # Set timeout for analysis (5 minutes for production deployment)
-        timeout_seconds = 300  # Reduced from 10 minutes to 5 minutes for faster feedback
+        # Set timeout for analysis - OPTIMIZED FOR FASTER PROCESSING
+        timeout_seconds = 120  # REDUCED from 5 minutes to 2 minutes for faster feedback and preventing hangs
         
         # Update job status
         analysis_jobs[job_id]['status'] = 'PROCESSING'

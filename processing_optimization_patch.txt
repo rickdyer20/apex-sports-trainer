@@ -1,0 +1,39 @@
+
+# OPTIMIZED VIDEO PROCESSING PATCH
+# Apply these changes to basketball_analysis_service.py for better performance
+
+# 1. Reduce frame processing limits (around line 572)
+max_frames = min(total_frames, 100)  # Changed from 150-300
+
+# 2. Reduce processing timeout (around line 598)
+max_processing_time = 90  # Changed from 120
+
+# 3. Use simpler MediaPipe model (around line 582)
+with mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=0,  # Changed from 1 to 0 (simplest model)
+    enable_segmentation=False,
+    min_detection_confidence=0.7  # Slightly lower for better performance
+) as pose_model:
+
+# 4. More aggressive FPS reduction (around line 2300)
+reduced_fps = max(fps / 10, 2)  # Changed from fps/8
+
+# 5. Process every 2nd frame for output (around line 2320)
+frame_skip = 3  # Changed from 2
+
+# 6. Force mp4v codec (around line 770)
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use mp4v instead of others
+
+# 7. Add immediate cleanup (around line 2420)
+# Clean up input video immediately after processing
+try:
+    if os.path.exists(local_video_path):
+        os.remove(local_video_path)
+        logging.info(f"Cleaned up input video: {local_video_path}")
+except Exception as e:
+    logging.warning(f"Failed to cleanup input video: {e}")
+
+# 8. Force garbage collection after each job
+import gc
+gc.collect()
