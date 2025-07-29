@@ -57,4 +57,7 @@ os.environ.setdefault('FLASK_DEBUG', 'false')
 # For local development
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 8080))
-    application.run(host='0.0.0.0', port=port)
+    print(f"🚀 Starting Flask app on port: {port}")
+    print(f"🔧 Environment PORT variable: {os.environ.get('PORT', 'NOT SET')}")
+    print(f"📋 All environment variables: {dict(os.environ)}")
+    application.run(host='0.0.0.0', port=port, debug=True)
