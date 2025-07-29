@@ -1,63 +1,51 @@
 #!/usr/bin/env python3
 """
-Emergency Direct WSGI Application
-Bypasses all imports - defines Flask app directly in WSGI
+Basketball Analysis Service - Production WSGI
+Gradual restoration of full functionality
 """
 
 import os
-from flask import Flask
+import sys
 
-# Create Flask app directly in WSGI - no imports
-application = Flask(__name__)
+# Add the project directory to the Python path
+sys.path.insert(0, os.path.dirname(__file__))
 
-@application.route('/')
-def home():
-    """Direct WSGI home"""
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Direct WSGI Working!</title>
-    </head>
-    <body>
-        <h1>🎯 DIRECT WSGI SUCCESS!</h1>
-        <h2>No Imports - Direct Flask App</h2>
-        <p>This app is defined directly in wsgi.py</p>
-        <ul>
-            <li><a href="/health">Health Check</a></li>
-            <li><a href="/status">Status</a></li>
-        </ul>
-    </body>
-    </html>
-    '''
-
-@application.route('/health')
-def health():
-    """Health check for DigitalOcean"""
-    return {
-        'status': 'healthy',
-        'method': 'direct_wsgi',
-        'message': 'Direct WSGI app working perfectly'
-    }
-
-@application.route('/status')
-def status():
-    """Status endpoint"""
-    return {
-        'wsgi': 'direct',
-        'flask': 'working',
-        'imports': 'none',
-        'deployment': 'digitalocean'
-    }
-
-# Environment setup
+# Set environment variables for production
 os.environ.setdefault('FLASK_ENV', 'production')
 os.environ.setdefault('FLASK_DEBUG', 'false')
+
+# Import the full web application
+try:
+    from web_app import app as application
+    print(f"✅ Successfully loaded full basketball analysis app: {application}")
+except ImportError as e:
+    print(f"⚠️ Failed to import full app, falling back to simple version: {e}")
+    # Fallback to simple app if full app fails
+    from flask import Flask
+    application = Flask(__name__)
+    
+    @application.route('/')
+    def fallback_home():
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Basketball Analysis - Loading</title>
+        </head>
+        <body>
+            <h1>� Basketball Analysis Service</h1>
+            <h2>⚠️ Loading Full Version...</h2>
+            <p>The full basketball analysis service is being restored.</p>
+            <p>Some dependencies may still be loading.</p>
+        </body>
+        </html>
+        '''
+    
+    @application.route('/health')
+    def fallback_health():
+        return {'status': 'partial', 'message': 'Loading full service'}
 
 # For local development
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 8080))
-    print(f"🚀 Starting Flask app on port: {port}")
-    print(f"🔧 Environment PORT variable: {os.environ.get('PORT', 'NOT SET')}")
-    print(f"📋 All environment variables: {dict(os.environ)}")
-    application.run(host='0.0.0.0', port=port, debug=True)
+    application.run(host='0.0.0.0', port=port, debug=False)
