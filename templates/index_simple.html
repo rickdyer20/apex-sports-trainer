@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Shot Analysis - Deployment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Basketball Shot Analysis Service</h1>
+        <div class="status">
+            ✅ Deployment Test Successful! The application is running on DigitalOcean.
+        </div>
+        
+        <div class="test-section">
+            <h3>Service Information</h3>
+            <ul>
+                <li>Platform: DigitalOcean App Platform</li>
+                <li>Status: Active</li>
+                <li>Framework: Flask + MediaPipe</li>
+                <li>Purpose: Basketball shooting form analysis</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Upload (Deployment Test)</h3>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" name="video" accept="video/*" required>
+                <button type="submit">Test Upload</button>
+            </form>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerHTML = 
+                    '<div style="background:#d4edda;color:#155724;padding:10px;margin-top:10px;border-radius:5px;">' +
+                    'Test successful: ' + data.message + '</div>';
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = 
+                    '<div style="background:#f8d7da;color:#721c24;padding:10px;margin-top:10px;border-radius:5px;">' +
+                    'Test failed: ' + error.message + '</div>';
+            });
+        });
+    </script>
+</body>
+</html>
