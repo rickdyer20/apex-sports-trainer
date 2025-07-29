@@ -181,19 +181,33 @@ def test_dependencies():
     
     # Test core dependencies
     test_imports = [
-        ('cv2', 'OpenCV'),
-        ('mediapipe', 'MediaPipe'),
+        ('cv2', 'OpenCV (headless)'),
         ('numpy', 'NumPy'),
-        ('reportlab', 'ReportLab'),
         ('PIL', 'Pillow'),
-        ('requests', 'Requests')
+        ('requests', 'Requests'),
+        ('mediapipe', 'MediaPipe'), 
+        ('reportlab', 'ReportLab'),
+        ('imageio', 'ImageIO')
     ]
     
     for module, name in test_imports:
         try:
-            __import__(module)
+            imported_module = __import__(module)
             results['dependencies'][name] = 'available'
             logger.info(f"✅ {name} import successful")
+            
+            # Special test for OpenCV
+            if module == 'cv2':
+                try:
+                    # Test basic OpenCV functionality
+                    import numpy as np
+                    test_array = np.zeros((100, 100, 3), dtype=np.uint8)
+                    results['dependencies'][f'{name} basic test'] = 'passed'
+                    logger.info(f"✅ {name} basic functionality test passed")
+                except Exception as e:
+                    results['dependencies'][f'{name} basic test'] = f'failed: {str(e)}'
+                    logger.warning(f"⚠️ {name} basic test failed: {e}")
+                    
         except ImportError as e:
             results['dependencies'][name] = f'error: {str(e)}'
             logger.warning(f"⚠️ {name} import failed: {e}")

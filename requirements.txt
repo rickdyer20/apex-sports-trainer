@@ -1,6 +1,3 @@
-# Minimal Requirements for Deployment Diagnosis
-# Basketball Shot Analysis Service - Core Dependencies Only
-
 # Core Framework (Essential)
 Flask==2.3.3
 gunicorn==21.2.0
@@ -14,20 +11,17 @@ click==8.1.7
 requests==2.31.0
 python-dotenv==1.0.0
 
-# These will be tested by the diagnostic app
-# Uncomment one by one to identify problematic dependencies:
+# Essential for basketball analysis (headless versions)
+numpy==1.24.3
+opencv-python-headless==4.8.1.78
+Pillow==10.0.1
 
-# Computer Vision & AI (Heavy dependencies - potential issues)
-# opencv-python==4.8.1.78
+# These will be added back gradually:
 # mediapipe==0.10.7
-# numpy==1.24.3
-
-# Video Processing (May cause issues)
 # imageio==2.31.5
 # imageio-ffmpeg==0.4.9
-
-# PDF Generation (Can cause issues)
 # reportlab==4.0.4
+# Flask-CORS==4.0.0
 # Pillow==10.0.1
 
 # Web Framework Extensions
