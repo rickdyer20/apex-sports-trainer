@@ -1,33 +1,17 @@
-# Basketball Analysis - Render Deployment Configuration
+# Basketball Analysis - Render Deployment Configuration (Updated for WSGI)
 
-# Build Command
-build = "pip install -r requirements.txt"
-
-# Start Command  
-start = "python start_production.py"
-
-# Environment
-[env]
-FLASK_ENV = "production"
-PYTHON_VERSION = "3.11.0"
-
-# Health Check
-healthcheck = "/health"
-
-# Auto Deploy
-autoDeploy = true
-
-# Scaling
-[scaling]
-minInstances = 1
-maxInstances = 3
-
-# Services
-[[services]]
-type = "web"
-name = "basketball-analysis"
-env = "production"
-buildCommand = "pip install -r requirements.txt"
+services:
+  - type: web
+    name: basketball-analysis-service
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.9.18
 startCommand = "python start_production.py"
 healthCheckPath = "/health"
 
