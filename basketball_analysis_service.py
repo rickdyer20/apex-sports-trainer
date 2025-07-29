@@ -558,10 +558,10 @@ def detect_and_correct_orientation(frame):
     Can be easily disabled by setting ENABLE_ORIENTATION_CORRECTION = False
     """
     # Easy toggle to disable this feature if it doesn't work well
-    # 🎯 ORIENTATION STRATEGY: Focus on user education rather than forced correction
-    # Set to False to rely on proper user recording instead of auto-correction
-    # This encourages users to record correctly and provides better quality videos
-    ENABLE_ORIENTATION_CORRECTION = False  # Disabled in favor of user education approach
+    # 🎯 ORIENTATION STRATEGY: Guide users to record properly instead of auto-correction
+    # Set to False to encourage proper recording technique for consistent analysis
+    # This ensures users learn proper video recording for basketball analysis
+    ENABLE_ORIENTATION_CORRECTION = False  # Disabled - guide users to record correctly
     
     if not ENABLE_ORIENTATION_CORRECTION:
         return frame
@@ -1898,6 +1898,13 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+        # Detect if video is in portrait mode (appears sideways)
+        video_appears_sideways = height > width
+        if video_appears_sideways:
+            logging.info(f"📱 Portrait video detected ({width}x{height}) - video will appear sideways in results")
+        else:
+            logging.info(f"📺 Landscape video detected ({width}x{height}) - optimal for viewing")
+
         logging.info(f"Video properties - FPS: {fps}, Size: {width}x{height}, Frames: {total_frames}")
         
         # Validate video properties
@@ -2522,5 +2529,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         'detailed_flaws': detailed_flaws,
         'shot_phases': shot_phases,
         'feedback_points': feedback_points,
-        'improvement_plan_pdf': improvement_plan_pdf
+        'improvement_plan_pdf': improvement_plan_pdf,
+        'video_appears_sideways': video_appears_sideways
     }

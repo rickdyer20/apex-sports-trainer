@@ -46,6 +46,22 @@
                             phase identification, and personalized feedback.
                         </p>
                     </div>
+
+                    <!-- Video Orientation Notice -->
+                    {% if results.video_appears_sideways %}
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-mobile-alt me-2"></i>Video Display Notice</h6>
+                        <p class="mb-2">
+                            <strong>Your video appears sideways because it was recorded in portrait mode.</strong> 
+                            We don't automatically rotate videos to preserve analysis accuracy.
+                        </p>
+                        <p class="mb-0">
+                            <strong>For future uploads:</strong> Record in landscape mode (hold phone sideways) 
+                            for the best viewing experience and analysis results.
+                            <a href="{{ url_for('index') }}#recording-guide" class="alert-link">View recording guide →</a>
+                        </p>
+                    </div>
+                    {% endif %}
                     
                     <!-- Key Metrics -->
                     <div class="row g-4 mb-4">
