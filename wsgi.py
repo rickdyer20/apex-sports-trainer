@@ -11,6 +11,15 @@ import sys
 # This ensures that 'web_app' can be imported by the WSGI server.
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Set performance environment variables for Railway deployment
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
+os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
+os.environ.setdefault('MEDIAPIPE_DISABLE_GPU', '1')
+os.environ.setdefault('FLASK_ENV', 'production')
+os.environ.setdefault('FLASK_DEBUG', 'false')
+os.environ.setdefault('FLASK_HOST', '0.0.0.0')
+
 # Import the Flask application object from our web_app module
 # and rename it to 'application' as is conventional for Gunicorn.
 from web_app import app as application

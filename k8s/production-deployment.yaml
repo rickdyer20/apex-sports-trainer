@@ -74,6 +74,19 @@ spec:
         env:
         - name: COMPONENT_TYPE
           value: "web"
+        # Performance optimization environment variables
+        - name: TF_CPP_MIN_LOG_LEVEL
+          value: "2"
+        - name: CUDA_VISIBLE_DEVICES
+          value: ""
+        - name: TF_ENABLE_ONEDNN_OPTS
+          value: "0"
+        - name: MEDIAPIPE_DISABLE_GPU
+          value: "1"
+        - name: FLASK_DEBUG
+          value: "false"
+        - name: FLASK_HOST
+          value: "0.0.0.0"
         envFrom:
         - configMapRef:
             name: app-config

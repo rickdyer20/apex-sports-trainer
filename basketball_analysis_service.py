@@ -2,6 +2,10 @@
 # These would be handled via environment variables, configuration files,
 # and dependency injection in a real service.
 import os
+# Performance optimizations for TensorFlow
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -10,6 +14,7 @@ import logging # For robust logging
 import time
 import subprocess
 import shutil
+import gc  # For garbage collection
 from datetime import datetime
 from pdf_generator import generate_improvement_plan_pdf
 
@@ -21,7 +26,23 @@ except ImportError:
 
 # --- Service Initialization (on service startup) ---
 mp_pose = mp.solutions.pose
-pose_model = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+# PRODUCTION FIX: Lazy initialization to avoid Docker startup permission issues
+pose_model = None
+
+def get_pose_model():
+    """Lazy initialization of MediaPipe pose model to avoid Docker startup issues"""
+    global pose_model
+    if pose_model is None:
+        pose_model = mp_pose.Pose(
+            static_image_mode=False, 
+            model_complexity=0,  # Use faster, less accurate model
+            min_detection_confidence=0.5, 
+            min_tracking_confidence=0.5,
+            enable_segmentation=False  # Disable segmentation for better performance
+        )
+    return pose_model
+
 mp_drawing = mp.solutions.drawing_utils
 
 # Add a global flag to check if ffmpeg is available
@@ -1557,7 +1578,7 @@ def detect_shot_start_pose_based(cap, fps, max_detection_frames):
                 
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
-            results = pose_model.process(image)
+            results = get_pose_model().process(image)
             
             if results.pose_landmarks:
                 consecutive_good_poses += 1
@@ -1890,9 +1911,9 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         # 🎯 INTELLIGENT SHOT DETECTION - Find when shooting motion actually begins
         shot_start_frame = detect_shot_start_frame(cap, fps, max_detection_frames=min(total_frames, 300))
         
-        # Calculate effective video length from shot start
+        # Calculate effective video length from shot start - OPTIMIZED FOR STABILITY
         effective_total_frames = total_frames - shot_start_frame
-        max_frames = min(effective_total_frames, 150)  # Process max 150 frames from shot start
+        max_frames = min(effective_total_frames, 100)  # REDUCED: Process max 100 frames from shot start
         
         if shot_start_frame > 0:
             logging.info(f"🎯 Shot detected! Starting analysis from frame {shot_start_frame} (skipping {shot_start_frame} pre-shot frames)")
@@ -1901,7 +1922,7 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             cap.set(cv2.CAP_PROP_POS_FRAMES, shot_start_frame)
         else:
             logging.info(f"No pre-shot movement detected, processing from beginning")
-            max_frames = min(total_frames, 150)
+            max_frames = min(total_frames, 100)
         
         if max_frames < 30:  # Ensure we have enough frames for meaningful analysis
             logging.warning(f"Very short effective video length ({max_frames} frames), results may be limited")
@@ -1922,7 +1943,7 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     # Process frames with timeout protection and memory management
     import time
     start_time = time.time()
-    max_processing_time = 60  # Reduce to 1 minute max processing time to avoid memory issues
+    max_processing_time = 90  # Reduce to 90 seconds max processing time to avoid memory issues
 
     try:
         while cap.isOpened() and current_frame_idx < max_frames:
@@ -1946,7 +1967,7 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 image.flags.writeable = False
                 
                 # Process with MediaPipe
-                results = pose_model.process(image)
+                results = get_pose_model().process(image)
                 image.flags.writeable = True
 
                 frame_metrics = {}
@@ -2115,6 +2136,10 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
 
             current_frame_idx += 1
             frames_processed += 1
+            
+            # Garbage collection every 10 frames for memory management
+            if frames_processed % 10 == 0:
+                gc.collect()
 
     except Exception as e:
         logging.error(f"Critical error during frame processing: {e}")
@@ -2124,6 +2149,8 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     finally:
         if cap:
             cap.release()
+        # Force garbage collection after processing
+        gc.collect()
 
     processing_time = time.time() - start_time
     logging.info(f"Finished pose estimation for {frames_processed} frames in {processing_time:.1f}s. Poses detected in {frames_with_pose} frames.")

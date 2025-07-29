@@ -89,6 +89,8 @@ def load_job_from_file(job_id):
 def save_results_to_file(job_id, results_data):
     """Save results data to file for persistence"""
     try:
+        print(f"DEBUG: save_results_to_file called for job {job_id}")
+        
         # Ensure jobs directory exists
         jobs_dir = 'jobs'
         if not os.path.exists(jobs_dir):
@@ -98,47 +100,69 @@ def save_results_to_file(job_id, results_data):
         results_file = os.path.join(jobs_dir, f"{job_id}_results.json")
         print(f"DEBUG: Attempting to save results to: {results_file}")
         
+        # Check if we can write to the directory
+        try:
+            test_file = os.path.join(jobs_dir, f"test_{job_id}.tmp")
+            with open(test_file, 'w') as f:
+                f.write("test")
+            os.remove(test_file)
+            print(f"DEBUG: Directory write test successful for {jobs_dir}")
+        except Exception as write_test_error:
+            print(f"DEBUG: Directory write test failed: {write_test_error}")
+            raise write_test_error
+        
         serializable_data = results_data.copy()
+        print(f"DEBUG: Original data keys: {list(serializable_data.keys())}")
         
         # Convert datetime objects to ISO strings
         if 'processed_at' in serializable_data:
-            serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
+            if hasattr(serializable_data['processed_at'], 'isoformat'):
+                serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
+            print(f"DEBUG: Converted processed_at to string")
         
         # Convert complex objects to serializable format
         def make_serializable(obj, depth=0, max_depth=5):
-            # Prevent infinite recursion
-            if depth > max_depth:
-                return str(obj)
-            
-            # Handle basic types first
-            if obj is None or isinstance(obj, (str, int, float, bool)):
-                return obj
-            elif isinstance(obj, list):
-                return [make_serializable(item, depth + 1, max_depth) for item in obj]
-            elif isinstance(obj, dict):
-                return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
-            elif hasattr(obj, '__dict__'):
-                # Skip MediaPipe and OpenCV objects - just convert to string representation
-                if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy.ndarray']):
+            try:
+                # Prevent infinite recursion
+                if depth > max_depth:
                     return str(obj)
-                # Convert other objects with attributes to dictionaries
-                try:
-                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
-                except:
+                
+                # Handle basic types first
+                if obj is None or isinstance(obj, (str, int, float, bool)):
+                    return obj
+                elif isinstance(obj, list):
+                    return [make_serializable(item, depth + 1, max_depth) for item in obj]
+                elif isinstance(obj, dict):
+                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
+                elif hasattr(obj, '__dict__'):
+                    # Skip MediaPipe and OpenCV objects - just convert to string representation
+                    if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy.ndarray']):
+                        return str(obj)
+                    # Convert other objects with attributes to dictionaries
+                    try:
+                        return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
+                    except:
+                        return str(obj)
+                else:
                     return str(obj)
-            else:
+            except Exception as make_serializable_error:
+                print(f"DEBUG: make_serializable error for {type(obj)}: {make_serializable_error}")
                 return str(obj)
         
         # Apply serialization to complex fields
         for key in ['shot_phases', 'detailed_flaws', 'feedback_points']:
             if key in serializable_data:
+                print(f"DEBUG: Serializing {key} with {len(serializable_data[key]) if isinstance(serializable_data[key], list) else 'unknown'} items")
                 serializable_data[key] = make_serializable(serializable_data[key])
+                print(f"DEBUG: Serialized {key} successfully")
         
+        print(f"DEBUG: About to write JSON to file")
         with open(results_file, 'w') as f:
             json.dump(serializable_data, f, indent=2)
         
         print(f"DEBUG: Successfully saved results {job_id} to file")
-        print(f"DEBUG: File size: {os.path.getsize(results_file)} bytes")
+        file_size = os.path.getsize(results_file) if os.path.exists(results_file) else 0
+        print(f"DEBUG: File size: {file_size} bytes")
         
         # Verify the file was written correctly
         if os.path.exists(results_file):
@@ -146,13 +170,19 @@ def save_results_to_file(job_id, results_data):
                 with open(results_file, 'r') as f:
                     test_load = json.load(f)
                 print(f"DEBUG: Results file verification successful")
+                return True
             except Exception as e:
                 print(f"DEBUG: Results file verification failed: {e}")
+                return False
+        else:
+            print(f"DEBUG: Results file does not exist after write attempt")
+            return False
         
     except Exception as e:
         print(f"DEBUG: Failed to save results {job_id}: {e}")
         import traceback
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        return False
 
 def load_results_from_file(job_id):
     """Load results data from file"""
@@ -412,7 +442,33 @@ def process_video_async(job_id, video_path, ideal_data):
         print(f"DEBUG: Analysis complete: {job_results[job_id].get('analysis_complete', False)}")
         print(f"DEBUG: Video path exists: {job_results[job_id].get('video_path') and os.path.exists(job_results[job_id]['video_path'])}")
         
-        save_results_to_file(job_id, job_results[job_id])
+        try:
+            save_results_to_file(job_id, job_results[job_id])
+            print(f"DEBUG: Results saved successfully for job {job_id}")
+        except Exception as e:
+            print(f"ERROR: Failed to save results for job {job_id}: {e}")
+            import traceback
+            print(f"ERROR: Traceback: {traceback.format_exc()}")
+            # Try to save a minimal results file as fallback
+            try:
+                minimal_results = {
+                    'video_path': job_results[job_id].get('video_path'),
+                    'analysis_complete': job_results[job_id].get('analysis_complete', True),
+                    'processed_at': datetime.now().isoformat(),
+                    'flaw_stills': job_results[job_id].get('flaw_stills', []),
+                    'feedback_stills': job_results[job_id].get('feedback_stills', []),
+                    'detailed_flaws': [],
+                    'shot_phases': [],
+                    'feedback_points': [],
+                    'improvement_plan_pdf': job_results[job_id].get('improvement_plan_pdf'),
+                    'error': 'Results processing failed but analysis completed'
+                }
+                results_file = os.path.join('jobs', f"{job_id}_results.json")
+                with open(results_file, 'w') as f:
+                    json.dump(minimal_results, f, indent=2)
+                print(f"DEBUG: Saved minimal results file for job {job_id}")
+            except Exception as fallback_error:
+                print(f"ERROR: Failed to save even minimal results for job {job_id}: {fallback_error}")
         
         # Log performance metrics
         end_time = time.time()
@@ -675,9 +731,9 @@ def view_results(job_id):
     
     job_status = analysis_jobs[job_id]['status']
     
-    if job_status == 'PROCESSING':
+    if job_status == 'PROCESSING' or job_status == 'PENDING' or job_status == 'FINALIZING':
         flash('Analysis is still in progress. Please wait...')
-        return redirect(url_for('index'))
+        return redirect(url_for('analysis_status', job_id=job_id))
     elif job_status == 'FAILED':
         if job_id in job_results and 'error' in job_results[job_id]:
             flash(f'Analysis failed: {job_results[job_id]["error"]}')
@@ -1293,7 +1349,17 @@ if __name__ == '__main__':
     print("   • Biomechanical feedback")
     print("   • Downloadable results")
     print("   • Analysis history")
-    print("\n🌐 Starting web server at http://127.0.0.1:5000")
-    print("📝 Upload a basketball shot video to begin analysis!")
     
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    # Environment-based configuration for both development and production
+    debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    port = int(os.environ.get('PORT', 5000))
+    
+    if debug_mode:
+        print(f"\n🌐 Starting development server at http://{host}:{port}")
+        print("📝 Upload a basketball shot video to begin analysis!")
+    else:
+        print(f"\n🌐 Starting production server on {host}:{port}")
+        print("🔧 Optimized for performance with reduced resource usage")
+    
+    app.run(debug=debug_mode, host=host, port=port)

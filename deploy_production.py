@@ -19,6 +19,24 @@ logging.basicConfig(
     ]
 )
 
+def set_performance_environment():
+    """Set environment variables for optimized performance"""
+    logging.info("Setting performance optimization environment variables...")
+    
+    performance_vars = {
+        'TF_CPP_MIN_LOG_LEVEL': '2',
+        'CUDA_VISIBLE_DEVICES': '',
+        'TF_ENABLE_ONEDNN_OPTS': '0',
+        'MEDIAPIPE_DISABLE_GPU': '1',
+        'FLASK_ENV': 'production',
+        'FLASK_DEBUG': 'false',
+        'FLASK_HOST': '0.0.0.0'
+    }
+    
+    for key, value in performance_vars.items():
+        os.environ[key] = value
+        logging.info(f"Set {key}={value}")
+
 def check_system_requirements():
     """Check system requirements for production deployment"""
     logging.info("Checking system requirements...")
@@ -96,15 +114,19 @@ def start_production_server():
     app.config['DEBUG'] = False
     app.config['TESTING'] = False
     
+    # Get host and port from environment (for containerized deployment)
+    host = os.environ.get('FLASK_HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    
     # Start server with production settings
-    logging.info("🌐 Server starting at http://127.0.0.1:5000")
-    logging.info("📝 Ready for basketball shot analysis!")
+    logging.info(f"🌐 Server starting at http://{host}:{port}")
+    logging.info("📝 Ready for basketball shot analysis with optimized performance!")
     
     try:
         app.run(
             debug=False,
-            host='127.0.0.1',
-            port=5000,
+            host=host,
+            port=port,
             threaded=True,
             use_reloader=False
         )
@@ -123,6 +145,7 @@ if __name__ == '__main__':
     if not check_system_requirements():
         sys.exit(1)
     
+    set_performance_environment()
     optimize_directories()
     cleanup_temp_files()
     start_production_server()
