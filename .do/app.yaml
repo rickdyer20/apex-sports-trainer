@@ -1,0 +1,16 @@
+name: apex-sports-trainer
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: rickdyer20/apex-sports-trainer
+    branch: master
+  run_command: python start_production.py
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  http_port: 8080
+  routes:
+  - path: /
+  health_check:
+    http_path: /health
