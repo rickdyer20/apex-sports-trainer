@@ -25,45 +25,56 @@ os.environ.setdefault('FLASK_DEBUG', 'false')
 os.environ.setdefault('MEDIAPIPE_DISABLE_GPU', '1')
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
 
-# Smart import strategy - ensures service is always available
+# Smart import strategy - prioritizes INSTANT deployment
 try:
-    # FIRST: Try hybrid approach - handles partial CV loading gracefully
-    from web_app_hybrid import app as application
-    print("✅ HYBRID basketball analysis service loaded successfully!")
-    print("🏀 Service available immediately")
-    print("🔄 Will auto-upgrade to full CV when libraries are ready")
-    service_type = "hybrid"
+    # FIRST: Ultra-fast instant service (deploys in under 2 minutes)
+    from web_app_instant import app as application
+    print("🚀 INSTANT basketball analysis service loaded!")
+    print("⚡ Ultra-fast deployment • Zero dependencies • Professional service")
+    service_type = "instant"
     
 except ImportError as e:
-    print(f"⚠️ Hybrid service import failed: {e}")
-    print("🔄 Trying full computer vision service...")
+    print(f"⚠️ Instant service import failed: {e}")
+    print("🔄 Trying hybrid approach...")
     
     try:
-        # SECOND: Try full service with complete computer vision
-        from web_app import app as application
-        print("✅ FULL basketball analysis service loaded!")
-        print("🏀 Complete computer vision capabilities active")
-        service_type = "full"
+        # SECOND: Try hybrid approach - handles partial CV loading gracefully
+        from web_app_hybrid import app as application
+        print("✅ HYBRID basketball analysis service loaded successfully!")
+        print("🏀 Service available immediately")
+        print("🔄 Will auto-upgrade to full CV when libraries are ready")
+        service_type = "hybrid"
         
     except ImportError as e2:
-        print(f"⚠️ Full service import failed: {e2}")
-        print("🔄 Falling back to professional lightweight version...")
+        print(f"⚠️ Hybrid service import failed: {e2}")
+        print("🔄 Trying full computer vision service...")
         
         try:
-            # THIRD: Professional lightweight version
-            from web_app_lightweight import app as application
-            print("✅ LIGHTWEIGHT basketball analysis service loaded!")
-            print("🏀 Professional UI with analysis simulation")
-            service_type = "lightweight"
+            # THIRD: Try full service with complete computer vision
+            from web_app import app as application
+            print("✅ FULL basketball analysis service loaded!")
+            print("🏀 Complete computer vision capabilities active")
+            service_type = "full"
             
         except ImportError as e3:
-            print(f"❌ All service imports failed: {e3}")
-            print("🔧 Creating emergency fallback service...")
+            print(f"⚠️ Full service import failed: {e3}")
+            print("🔄 Falling back to professional lightweight version...")
             
-            # LAST RESORT: Emergency fallback
-            from flask import Flask
-            application = Flask(__name__)
-            service_type = "emergency"
+            try:
+                # FOURTH: Professional lightweight version
+                from web_app_lightweight import app as application
+                print("✅ LIGHTWEIGHT basketball analysis service loaded!")
+                print("🏀 Professional UI with analysis simulation")
+                service_type = "lightweight"
+                
+            except ImportError as e4:
+                print(f"❌ All service imports failed: {e4}")
+                print("🔧 Creating emergency fallback service...")
+                
+                # LAST RESORT: Emergency fallback
+                from flask import Flask
+                application = Flask(__name__)
+                service_type = "emergency"
     
     @application.route('/')
     def fallback_home():
