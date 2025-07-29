@@ -16,7 +16,7 @@ os.environ.setdefault('FLASK_DEBUG', 'false')
 
 # Import the full web application
 try:
-    from web_app import app as application
+    from web_app_lightweight import app as application
     print(f"✅ Successfully loaded full basketball analysis app: {application}")
 except ImportError as e:
     print(f"⚠️ Failed to import full app, falling back to simple version: {e}")
