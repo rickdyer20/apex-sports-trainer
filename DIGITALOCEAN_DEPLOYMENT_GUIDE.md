@@ -123,15 +123,26 @@ services:
 
 ## ⚠️ Troubleshooting
 
+### ❌ Deploy Error: Non-Zero Exit Code
+If you receive "Component Issues: deploy failed because your container exited with a non-zero exit code":
+
+**SOLUTION:** Use the diagnostic mode first:
+1. **Diagnostic version deployed** - The app.yaml is now configured to use `web_app_diagnostic:app`
+2. **Minimal requirements** - Only essential Flask dependencies included
+3. **Test endpoint** - Visit `/test` to check which dependencies are failing
+4. **Gradual restoration** - Add dependencies back one by one
+
 ### If Build Fails:
 1. Check build logs in DigitalOcean dashboard
 2. Verify all dependencies in requirements.txt are compatible
 3. Check Python version compatibility (using Python 3.x)
+4. **Try diagnostic mode** if main app fails
 
 ### If App Won't Start:
 1. Check runtime logs for specific errors
 2. Verify gunicorn command syntax
 3. Ensure Flask app imports correctly
+4. **Use diagnostic version** to isolate the problem
 
 ### If Health Check Fails:
 1. Verify `/health` endpoint exists in web_app.py
