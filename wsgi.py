@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-Basketball Analysis Service - Production WSGI
-Gradual restoration of full functionality
+Production WSGI Entry Point - Hybrid Basketball Analysis Service
+===============================================================
+
+Smart deployment strategy that ensures instant service availability:
+✅ Attempts hybrid service (CV-ready with graceful fallback)
+✅ Falls back to full service if hybrid not available
+✅ Falls back to lightweight if full service fails
+✅ Provides loading page as last resort
+
+This approach guarantees your service is always available while
+computer vision dependencies load in the background.
 """
 
 import os
@@ -16,15 +25,45 @@ os.environ.setdefault('FLASK_DEBUG', 'false')
 os.environ.setdefault('MEDIAPIPE_DISABLE_GPU', '1')
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
 
-# Import the full web application
+# Smart import strategy - ensures service is always available
 try:
-    from web_app import app as application
-    print(f"✅ Successfully loaded full basketball analysis app: {application}")
+    # FIRST: Try hybrid approach - handles partial CV loading gracefully
+    from web_app_hybrid import app as application
+    print("✅ HYBRID basketball analysis service loaded successfully!")
+    print("🏀 Service available immediately")
+    print("🔄 Will auto-upgrade to full CV when libraries are ready")
+    service_type = "hybrid"
+    
 except ImportError as e:
-    print(f"⚠️ Failed to import full app, falling back to simple version: {e}")
-    # Fallback to simple app if full app fails
-    from flask import Flask
-    application = Flask(__name__)
+    print(f"⚠️ Hybrid service import failed: {e}")
+    print("🔄 Trying full computer vision service...")
+    
+    try:
+        # SECOND: Try full service with complete computer vision
+        from web_app import app as application
+        print("✅ FULL basketball analysis service loaded!")
+        print("🏀 Complete computer vision capabilities active")
+        service_type = "full"
+        
+    except ImportError as e2:
+        print(f"⚠️ Full service import failed: {e2}")
+        print("🔄 Falling back to professional lightweight version...")
+        
+        try:
+            # THIRD: Professional lightweight version
+            from web_app_lightweight import app as application
+            print("✅ LIGHTWEIGHT basketball analysis service loaded!")
+            print("🏀 Professional UI with analysis simulation")
+            service_type = "lightweight"
+            
+        except ImportError as e3:
+            print(f"❌ All service imports failed: {e3}")
+            print("🔧 Creating emergency fallback service...")
+            
+            # LAST RESORT: Emergency fallback
+            from flask import Flask
+            application = Flask(__name__)
+            service_type = "emergency"
     
     @application.route('/')
     def fallback_home():
