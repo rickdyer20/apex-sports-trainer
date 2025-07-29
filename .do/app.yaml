@@ -12,6 +12,12 @@ services:
   envs:
   - key: PORT
     value: "8080"
+  - key: FLASK_DEBUG
+    value: "False"
+  - key: FLASK_ENV
+    value: "production"
+  - key: PYTHONPATH
+    value: "/app"
   http_port: 8080
   routes:
   - path: /
