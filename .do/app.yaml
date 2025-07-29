@@ -5,7 +5,7 @@ services:
   github:
     repo: rickdyer20/apex-sports-trainer
     branch: master
-  run_command: python start_production.py
+  run_command: python start_digitalocean.py
   environment_slug: python
   instance_count: 1
   instance_size_slug: basic-xxs

@@ -1,0 +1,9 @@
+# Run these commands after creating your GitHub repository:
+
+git remote add origin https://github.com/rickdyer20/apex-sports-trainer.git
+git branch -M main
+git push -u origin main
+
+# Alternative commands if you use 'master' branch:
+# git remote add origin https://github.com/rickdyer20/apex-sports-trainer.git
+# git push -u origin master
