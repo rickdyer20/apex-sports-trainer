@@ -13,10 +13,12 @@ sys.path.insert(0, os.path.dirname(__file__))
 # Set environment variables for production
 os.environ.setdefault('FLASK_ENV', 'production')
 os.environ.setdefault('FLASK_DEBUG', 'false')
+os.environ.setdefault('MEDIAPIPE_DISABLE_GPU', '1')
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
 
 # Import the full web application
 try:
-    from web_app_lightweight import app as application
+    from web_app import app as application
     print(f"✅ Successfully loaded full basketball analysis app: {application}")
 except ImportError as e:
     print(f"⚠️ Failed to import full app, falling back to simple version: {e}")
