@@ -21,8 +21,7 @@ os.environ.setdefault('FLASK_DEBUG', 'false')
 os.environ.setdefault('FLASK_HOST', '0.0.0.0')
 
 # Import the Flask application object from our ultra-simple test app
-# This is for debugging deployment issues
-from test_simple_app import app as application
+from test_simple_app import application
 
 # The block below is for local development and allows running the app
 # directly with `python wsgi.py`. Gunicorn will not execute this part.

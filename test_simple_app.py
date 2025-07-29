@@ -6,8 +6,9 @@ Minimal Flask app to test basic functionality
 
 from flask import Flask
 
-# Create Flask app
+# Create Flask app - named 'application' for WSGI compatibility
 app = Flask(__name__)
+application = app  # WSGI servers often expect 'application'
 
 @app.route('/')
 def home():
