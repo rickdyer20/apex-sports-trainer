@@ -20,9 +20,9 @@ os.environ.setdefault('FLASK_ENV', 'production')
 os.environ.setdefault('FLASK_DEBUG', 'false')
 os.environ.setdefault('FLASK_HOST', '0.0.0.0')
 
-# Import the Flask application object from our web_app module
+# Import the Flask application object from our diagnostic web_app module
 # and rename it to 'application' as is conventional for Gunicorn.
-from web_app import app as application
+from web_app_diagnostic import app as application
 
 # The block below is for local development and allows running the app
 # directly with `python wsgi.py`. Gunicorn will not execute this part.

@@ -5,7 +5,7 @@ services:
   github:
     repo: rickdyer20/apex-sports-trainer
     branch: master
-  run_command: gunicorn --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --timeout 120 --max-requests 100 --preload web_app_diagnostic:app
+  run_command: gunicorn --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --timeout 120 --max-requests 100 --preload wsgi:application
   environment_slug: python
   instance_count: 1
   instance_size_slug: basic-xxs
