@@ -46,7 +46,7 @@ def check_core_dependencies():
         return False
 
 def start_flask_app():
-    """Start the Flask application with Gunicorn"""
+    """Start the Flask application directly"""
     logger.info("🚀 Starting Flask application...")
     
     # Get port from environment (DigitalOcean sets this)
@@ -62,25 +62,8 @@ def start_flask_app():
     try:
         from web_app import app
         
-        # Start with Gunicorn for production
-        import gunicorn.app.wsgiapp as wsgi
-        
-        # Configure Gunicorn
-        sys.argv = [
-            'gunicorn',
-            '--bind', f'0.0.0.0:{port}',
-            '--workers', '2',
-            '--timeout', '300',
-            '--keep-alive', '5',
-            '--max-requests', '1000',
-            '--max-requests-jitter', '100',
-            '--log-level', 'info',
-            '--access-logfile', '-',
-            '--error-logfile', '-',
-            'web_app:app'
-        ]
-        
-        wsgi.run()
+        # Start Flask app directly (DigitalOcean will use gunicorn)
+        app.run(host='0.0.0.0', port=port, debug=False)
         
     except Exception as e:
         logger.error(f"❌ Failed to start Flask app: {e}")
