@@ -1,13 +1,71 @@
 # 🚨 Deployment Error Resolution Guide
 
-## ❌ Error Received:
-**Deploy Error: Non-Zero Exit Code**
-- Component Issues: apex-sports-trainer2 deploy failed
-- Container exited with non-zero exit code
+## ❌ NEW Error Received:
+**"failed to solve: failed to read dockerfile: open Dockerfile: no such file or directory"**
+
+### 🔍 **Root Cause Analysis**
+You're trying to deploy using **Docker mode** but the Dockerfile was missing from your repository. This happens when:
+1. Render auto-detects Docker deployment from docker files in repo
+2. You manually selected "Docker" instead of "Web Service" 
+3. Previous Dockerfile was removed or renamed
+
+### ✅ **SOLUTION - DOCKERFILE RESTORED**
+
+I've created a production-ready Dockerfile for you. Now you have **2 deployment options**:
+
+## Option 1: 🚀 **Recommended - Buildpack Deployment**
+
+**Best for Starter Plan** - Use your existing Procfile:
+
+### Steps:
+1. **Go to Render Dashboard** → Delete current service if it exists
+2. **Create NEW Web Service** → Connect GitHub → Select repository  
+3. **Critical Settings:**
+   ```
+   Environment: Web Service (NOT Docker)
+   Build Command: pip install -r requirements.txt
+   Start Command: gunicorn --workers 2 --timeout 180 --bind 0.0.0.0:$PORT wsgi:application
+   ```
+4. **Environment Variables** (from `.env.starter`):
+   ```
+   FLASK_ENV=production
+   FLASK_DEBUG=False
+   PORT=8080
+   TF_CPP_MIN_LOG_LEVEL=2
+   MEDIAPIPE_DISABLE_GPU=1
+   ```
+
+## Option 2: 🐳 **Docker Deployment (Advanced)**
+
+**Uses the new Dockerfile I created:**
+
+### Steps:
+1. **Commit the Dockerfile:**
+   ```bash
+   git add Dockerfile
+   git commit -m "Add production Dockerfile for deployment"
+   git push origin master
+   ```
+2. **Create Web Service** - Render will auto-detect Dockerfile
+3. **Use Starter Plan** ($7/month)
 
 ---
 
-## ✅ **SOLUTION IMPLEMENTED - ROUND 2:**
+## 🎯 **MY RECOMMENDATION**
+
+**Use Option 1 (Buildpack)** because:
+- ✅ Your service is already optimized for it  
+- ✅ Faster builds (5-10 min vs 15-20 for Docker)
+- ✅ Less memory usage during build
+- ✅ Better for Starter Plan resources
+- ✅ Easier troubleshooting
+
+---
+
+## ❌ Previous Error Context:
+**Deploy Error: Non-Zero Exit Code**
+- Component Issues: apex-sports-trainer2 deploy failed
+- Container exited with non-zero exit code
 
 ### 🎯 **Specific Fixes Based on DigitalOcean Diagnostics:**
 
