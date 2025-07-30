@@ -490,6 +490,30 @@ def process_video_async(job_id, video_path, ideal_data):
         analysis_jobs[job_id]['updated_at'] = datetime.now()
         save_job_to_file(job_id, analysis_jobs[job_id])
 
+# RENDER OPTIMIZATION: Health check endpoint for monitoring
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render deployment"""
+    import psutil
+    try:
+        # Basic health metrics for monitoring
+        memory_info = psutil.virtual_memory()
+        health_data = {
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'memory_usage': f"{memory_info.percent}%",
+            'available_memory_gb': round(memory_info.available / (1024**3), 2),
+            'active_jobs': len([job for job in analysis_jobs.values() if job.get('status') == 'PROCESSING']),
+            'total_jobs': len(analysis_jobs)
+        }
+        return jsonify(health_data), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 @app.route('/')
 def index():
     """Main upload page"""

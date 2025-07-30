@@ -1,6 +1,4 @@
-# --- Configuration & Imports (Conceptual) ---
-# These would be handled via environment variables, configuration files,
-# and dependency injection in a real service.
+# --- Configuration & Imports ---
 import os
 # Performance optimizations for TensorFlow
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -10,19 +8,25 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import json
-import logging # For robust logging
+import logging
 import time
 import subprocess
 import shutil
-import gc  # For garbage collection
+import gc
 from datetime import datetime
-from pdf_generator import generate_improvement_plan_pdf
 
-# Try to import psutil for resource monitoring
+# Optional imports with graceful fallbacks
 try:
     import psutil
 except ImportError:
     psutil = None
+
+try:
+    from pdf_generator import generate_improvement_plan_pdf
+except ImportError:
+    def generate_improvement_plan_pdf(*args, **kwargs):
+        logging.warning("PDF generator not available")
+        return None
 
 # --- Service Initialization (on service startup) ---
 mp_pose = mp.solutions.pose
@@ -165,34 +169,19 @@ def create_video_from_frames_ffmpeg(frame_dir, output_path, fps):
     logging.error("All ffmpeg encoding options failed")
     return False
 
-    # Clean up frames regardless of success/failure
-    try:
-        shutil.rmtree(frame_dir)
-    except Exception as e:
-        logging.warning(f"Failed to remove temp frame directory: {e}")
-    finally:
-        # Clean up frames
-        try:
-            shutil.rmtree(frame_dir)
-        except Exception as e:
-            logging.warning(f"Failed to remove temp frame directory: {e}")
-
 def download_video_from_storage(video_url, local_path):
     """Simulates downloading video from S3/GCS."""
     logging.info(f"Downloading video from {video_url} to {local_path}")
     # In a real system: use AWS S3 client, Google Cloud Storage client etc.
-    # For this pseudo-code, we'll simulate by copying if source exists
+    # For this pseudo-code, simulate by copying if source exists
     if os.path.exists(video_url) and video_url != local_path:
         # Copy the file to simulate download
-        import shutil
         shutil.copy2(video_url, local_path)
         print(f"Copied {video_url} to {local_path}")
     elif not os.path.exists(local_path):
         # Dummy file creation for demonstration
         print(f"Creating a dummy video file at {local_path} as placeholder.")
         # This would be a proper download in production
-        # Example: a placeholder for a real video file
-        # You'd need a small sample video named 'user_shot.mp4' for local testing
         pass
     return True
 
@@ -747,14 +736,16 @@ def detect_camera_angle_and_visibility(processed_frames_data):
         # Right side clearly visible, left side blocked - LEFT SIDE VIEW (showing right side)
         visibility_analysis['camera_angle'] = 'left_side_view'
         visibility_analysis['visible_features']['shooting_hand'] = True
-        visibility_analysis['visible_features']['guide_hand'] = False
+        # Even if guide hand is mostly blocked, thumb movement might still be detectable
+        visibility_analysis['visible_features']['guide_hand'] = left_ratio > 0.2  # Lowered from implicit 0.3
         visibility_analysis['visible_features']['full_body_side'] = True
         visibility_analysis['confidence'] = right_ratio
         
     elif left_ratio > 0.7 and right_ratio < 0.3:
         # Left side clearly visible, right side blocked - RIGHT SIDE VIEW (showing left side)  
         visibility_analysis['camera_angle'] = 'right_side_view'
-        visibility_analysis['visible_features']['shooting_hand'] = False
+        # Even if shooting hand is mostly blocked, some movement might still be detectable
+        visibility_analysis['visible_features']['shooting_hand'] = right_ratio > 0.2  # Lowered from implicit 0.3
         visibility_analysis['visible_features']['guide_hand'] = True
         visibility_analysis['visible_features']['full_body_side'] = True
         visibility_analysis['confidence'] = left_ratio
@@ -770,8 +761,8 @@ def detect_camera_angle_and_visibility(processed_frames_data):
     else:
         # Unclear or angled view
         visibility_analysis['camera_angle'] = 'angled_view'
-        visibility_analysis['visible_features']['shooting_hand'] = right_ratio > 0.5
-        visibility_analysis['visible_features']['guide_hand'] = left_ratio > 0.5
+        visibility_analysis['visible_features']['shooting_hand'] = right_ratio > 0.4  # Slightly lowered
+        visibility_analysis['visible_features']['guide_hand'] = left_ratio > 0.4   # Slightly lowered
         visibility_analysis['confidence'] = max(left_ratio, right_ratio)
     
     # Check face profile visibility
@@ -792,15 +783,6 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
     # First, analyze what we can actually see from this camera angle
     visibility_info = detect_camera_angle_and_visibility(processed_frames_data)
     logging.info(f"Camera analysis: {visibility_info['camera_angle']} (confidence: {visibility_info['confidence']:.2f})")
-    logging.info(f"Visible features: {visibility_info['visible_features']}")
-    
-    # Log frame metrics for debugging elbow analysis
-    for i, frame_data in enumerate(processed_frames_data[:5]):  # Check first 5 frames
-        if frame_data.metrics:
-            elbow_metrics = {k: v for k, v in frame_data.metrics.items() if 'elbow' in k}
-            if elbow_metrics:
-                logging.info(f"Frame {i} elbow metrics: {elbow_metrics}")
-            break  # Only log one frame's data to avoid spam
     
     # Define comprehensive shooting flaws to detect with camera angle awareness
     flaw_detectors = {
@@ -842,7 +824,7 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
             'threshold': 20,  # Higher threshold for follow-through interference
             'plain_language': 'Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.',
             'requires_visibility': ['guide_hand'],
-            'camera_angles': ['right_side_view', 'front_view']
+            'camera_angles': ['right_side_view', 'front_view', 'angled_view', 'left_side_view']  # Added left_side_view - thumb flicks can be visible from multiple angles
         },
         'guide_hand_under_ball': {
             'description': 'Guide hand positioned underneath ball instead of on side',
@@ -959,9 +941,11 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
             
             # Only add flaws with meaningful severity (lowered threshold for core fundamentals)
             if flaw_detected and severity >= 5:  # Lowered from 8 to 5 for better detection
+                # FIXED: Convert relative frame index to absolute frame number
+                absolute_frame_number = shot_start_frame + worst_frame
                 detailed_flaws.append({
                     'flaw_type': flaw_key,
-                    'frame_number': worst_frame,
+                    'frame_number': absolute_frame_number,
                     'phase': current_phase_name,
                     'severity': severity,
                     'description': flaw_config['description'],
@@ -1032,27 +1016,33 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                 
                 if flaw_key == 'insufficient_knee_bend':
                     if 'knee_angle' in frame_data.metrics:
-                        ideal_min = ideal_shot_data['load_knee_angle']['min']
+                        ideal_min = ideal_shot_data['load_knee_angle']['min']  # 110°
                         actual = frame_data.metrics['knee_angle']
-                        logging.info(f"KNEE BEND ANALYSIS - Deepest point frame {frame_num}: knee_angle={actual}°, ideal_min={ideal_min}°")
-                        # Only flag if knee bend at deepest point is insufficient
-                        if actual > ideal_min + 15:  # Too straight at deepest point
-                            severity = min((actual - ideal_min) * 1.5, 50)
-                            logging.info(f"✓ INSUFFICIENT KNEE BEND at deepest point: angle={actual}° at frame {frame_num}, severity={severity}")
+                        
+                        # REFINED INSUFFICIENT KNEE BEND: Much stricter threshold
+                        # Only flag truly insufficient knee bend (>25° above minimum)
+                        if actual > ideal_min + 25:  # Must be >135° to flag (was >125°)
+                            # CONSERVATIVE SEVERITY: Only for genuinely problematic form
+                            severity_factor = (actual - ideal_min - 20) * 1.2  # Reduced sensitivity
+                            severity = min(severity_factor, 40)  # Lower max severity
+                            logging.info(f"INSUFFICIENT KNEE BEND DETECTED - Frame {frame_num}: angle={actual:.1f}° (need <{ideal_min + 25}°), severity={severity:.1f}")
                         else:
-                            logging.info(f"✓ Knee bend at deepest point is adequate: {actual}° (needs < {ideal_min + 15}°)")
+                            logging.debug(f"KNEE BEND OK - Frame {frame_num}: angle={actual:.1f}° within acceptable range (>{ideal_min + 25}° would flag)")
                             
                 elif flaw_key == 'excessive_knee_bend':
                     if 'knee_angle' in frame_data.metrics:
-                        ideal_max = ideal_shot_data['load_knee_angle']['max']
+                        ideal_max = ideal_shot_data['load_knee_angle']['max']  # 130°
                         actual = frame_data.metrics['knee_angle']
-                        logging.info(f"KNEE BEND ANALYSIS - Deepest point frame {frame_num}: knee_angle={actual}°, ideal_max={ideal_max}°")
-                        # Only flag if knee bend at deepest point is excessive
-                        if actual < ideal_max - 15:  # Too deep at deepest point
-                            severity = min((ideal_max - actual) * 1.5, 40)
-                            logging.info(f"✓ EXCESSIVE KNEE BEND at deepest point: angle={actual}° at frame {frame_num}, severity={severity}")
+                        
+                        # REFINED EXCESSIVE KNEE BEND: Much stricter threshold  
+                        # Only flag truly excessive knee bend (>25° below maximum)
+                        if actual < ideal_max - 25:  # Must be <105° to flag (was <115°)
+                            # CONSERVATIVE SEVERITY: Only for genuinely problematic form
+                            severity_factor = (ideal_max - actual - 20) * 1.2  # Reduced sensitivity
+                            severity = min(severity_factor, 35)  # Lower max severity
+                            logging.info(f"EXCESSIVE KNEE BEND DETECTED - Frame {frame_num}: angle={actual:.1f}° (need >{ideal_max - 25}°), severity={severity:.1f}")
                         else:
-                            logging.info(f"✓ Knee bend at deepest point is appropriate: {actual}° (needs > {ideal_max - 15}°)")
+                            logging.debug(f"KNEE BEND OK - Frame {frame_num}: angle={actual:.1f}° within acceptable range (<{ideal_max - 25}° would flag)")
                 
                 # For knee bend flaws, we only need one measurement (at the deepest point)
                 if severity > 0:
@@ -1082,179 +1072,203 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                 ideal_range = ideal_shot_data['follow_through_wrist_snap_angle']
                 actual = frame_data.metrics['wrist_angle_simplified']
                 
-                # Determine if this frame is during release or immediate follow-through
-                is_release_frame = False
-                is_immediate_followthrough = False
+                # REFINED WRIST SNAP DETECTION: Focus on peak Follow-Through moment only
+                is_peak_followthrough = False
+                current_phase_name = "Unknown"
+                
                 if shot_phases:
                     for phase in shot_phases:
-                        if phase.name == 'Release' and phase.start_frame <= frame_num <= phase.end_frame:
-                            is_release_frame = True
-                        elif phase.name == 'Follow-Through' and phase.start_frame <= frame_num <= phase.key_moment_frame + 3:
-                            is_immediate_followthrough = True
+                        if phase.start_frame <= frame_num <= phase.end_frame:
+                            current_phase_name = phase.name
+                            # STRICT TIMING: Only analyze at the peak Follow-Through moment
+                            if (phase.name == 'Follow-Through' and 
+                                phase.key_moment_frame is not None and
+                                abs(frame_num - phase.key_moment_frame) <= 2):  # ±2 frames from peak
+                                is_peak_followthrough = True
+                            break
                 
-                # Only analyze wrist snap during release and immediate follow-through (not late follow-through)
-                if is_release_frame or is_immediate_followthrough:
-                    logging.debug(f"WRIST SNAP DEBUG - Frame {frame_num}: wrist_angle={actual}°, ideal_min={ideal_range['min']}°, is_release={is_release_frame}, is_immediate_followthrough={is_immediate_followthrough}")
-                    # SIMPLIFIED DETECTION: Flag if significantly below ideal range (poor snap)
-                    if actual < ideal_range['min'] - 10:  # Lowered threshold from 20 to 10
-                        severity = min((ideal_range['min'] - actual) * 2.0, 35)  # Increased sensitivity and max severity
-                        logging.info(f"POOR WRIST SNAP DETECTED at proper timing: frame={frame_num}, angle={actual}°, severity={severity}")
+                # Skip if not at peak Follow-Through moment - eliminates timing false positives
+                if not is_peak_followthrough:
+                    logging.debug(f"WRIST SNAP SKIPPED - Frame {frame_num}: in {current_phase_name} phase, only analyzing peak Follow-Through moment")
+                    continue
+                
+                # MUCH STRICTER THRESHOLD: Only flag severely inadequate wrist snap
+                # Wrist snap is critical for backspin, so we need meaningful deviation
+                if actual < ideal_range['min'] - 20:  # Must be <50° to flag (was <60°)
+                    # CONSERVATIVE SEVERITY: Focus on truly problematic wrist snap
+                    severity_factor = (ideal_range['min'] - actual - 15) * 1.8  # Reduced sensitivity
+                    severity = min(severity_factor, 30)  # Lower max severity (was 35)
+                    logging.info(f"POOR WRIST SNAP DETECTED - Frame {frame_num} (peak Follow-Through): angle={actual:.1f}° (need >{ideal_range['min'] - 20}°), severity={severity:.1f}")
                 else:
-                    logging.debug(f"WRIST SNAP SKIPPED - Frame {frame_num}: too late in follow-through phase, hands likely already down")
+                    logging.debug(f"WRIST SNAP OK - Frame {frame_num} (peak Follow-Through): angle={actual:.1f}° within acceptable range")
                     
         elif flaw_key == 'elbow_flare':
-            # Enhanced elbow flare detection that works for both side and front views
-            # Only analyze frames during Release and Follow-Through phases (not during Load/Dip)
+            # REFINED ELBOW FLARE DETECTION - Focus on Release phase only with stricter thresholds
+            # Skip frames before shot motion begins
             if frame_num < shot_start_frame:
-                continue  # Skip frames before shot motion begins
+                continue
             
-            # Check if we're in the Release or Follow-Through phase
-            is_in_shooting_phase = False
+            # STRICT PHASE RESTRICTION: Only analyze during Release phase (not Follow-Through)
+            is_release_phase = False
             current_phase_name = "Unknown"
             
             if shot_phases:
                 for phase in shot_phases:
                     if phase.start_frame <= frame_num <= phase.end_frame:
                         current_phase_name = phase.name
-                        if phase.name in ['Release', 'Follow-Through']:
-                            is_in_shooting_phase = True
+                        if phase.name == 'Release':  # ONLY Release phase
+                            is_release_phase = True
                         break
             
-            # Skip elbow flare detection during Load/Dip phase - elbow positioning during setup is not a flaw
-            if not is_in_shooting_phase:
-                logging.debug(f"ELBOW FLARE SKIPPED - Frame {frame_num}: in {current_phase_name} phase, only checking during Release/Follow-Through")
+            # Skip if not in Release phase - eliminates false positives from natural follow-through movement
+            if not is_release_phase:
+                logging.debug(f"ELBOW FLARE SKIPPED - Frame {frame_num}: in {current_phase_name} phase, only analyzing Release phase")
                 continue
                 
-            logging.debug(f"ELBOW FLARE ANALYSIS - Frame {frame_num} in {current_phase_name} phase")
-                
+            # STRICTER THRESHOLDS for more reliable detection
+            frame_severity = 0
+            
+            # Side view detection: check elbow extension angle
             if 'elbow_angle' in frame_data.metrics:
-                # Side view detection: check elbow extension angle
                 ideal_range = ideal_shot_data['release_elbow_angle']
                 actual = frame_data.metrics['elbow_angle']
-                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_angle={actual}°, ideal={ideal_range}")
-                # Check if elbow is too bent (not extended enough) during shooting motion
-                if actual < ideal_range['min']:  # Less than 160 degrees typically indicates flare
-                    side_severity = min((ideal_range['min'] - actual) * 1.5, 60)  # Reasonable sensitivity
-                    severity = max(severity, side_severity)
-                    logging.info(f"ELBOW FLARE DETECTED - Side view: angle={actual}°, ideal_min={ideal_range['min']}°, severity={side_severity}")
+                # STRICTER: Only flag severe extension issues (>20° below ideal)
+                if actual < ideal_range['min'] - 20:  # Much stricter than before
+                    side_severity = min((ideal_range['min'] - actual) * 1.2, 50)  # Reduced max severity
+                    frame_severity = max(frame_severity, side_severity)
             
-            # Front view detection: check lateral elbow deviation
+            # Front view detection: lateral elbow deviation with STRICTER thresholds
             if 'elbow_flare_front_view' in frame_data.metrics:
                 elbow_flare_ratio = frame_data.metrics['elbow_flare_front_view']
-                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_flare_ratio={elbow_flare_ratio}%")
-                # Detect lateral deviation - lowered threshold for better sensitivity
-                if elbow_flare_ratio > 25:  # Threshold for meaningful flare (lowered from 40 for better detection)  
-                    front_view_severity = min((elbow_flare_ratio - 20) * 2.0, 60)  # Adjusted for new threshold
-                    severity = max(severity, front_view_severity)
+                # STRICTER THRESHOLD: Only flag significant lateral deviation (>30% instead of >25%)
+                if elbow_flare_ratio > 30:  # Increased from 25% for fewer false positives
+                    front_view_severity = min((elbow_flare_ratio - 25) * 1.5, 50)  # Reduced sensitivity
+                    frame_severity = max(frame_severity, front_view_severity)
                     logging.info(f"ELBOW FLARE DETECTED - Front view: ratio={elbow_flare_ratio}%, severity={front_view_severity}")
                 else:
-                    logging.debug(f"ELBOW FLARE NOT DETECTED - Front view: ratio={elbow_flare_ratio}% below threshold (25%)")
+                    logging.debug(f"ELBOW FLARE NOT DETECTED - Front view: ratio={elbow_flare_ratio}% below strict threshold (30%)")
                     
-            # Alternative front view detection using lateral angle  
+            # Alternative front view: lateral angle with STRICTER threshold
             if 'elbow_lateral_angle' in frame_data.metrics:
                 lateral_angle = frame_data.metrics['elbow_lateral_angle']
-                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_lateral_angle={lateral_angle}°")
-                # Detect lateral movement during shooting motion - lowered threshold
-                if lateral_angle > 10:  # Lowered threshold for better sensitivity (was 15)
-                    angle_severity = min((lateral_angle - 8) * 3.0, 50)  # Adjusted sensitivity
-                    severity = max(severity, angle_severity)
-                    logging.info(f"ELBOW FLARE DETECTED - Lateral angle: angle={lateral_angle}°, severity={angle_severity}")
+                # STRICTER THRESHOLD: Only flag angles >15° (increased from >10°)
+                if lateral_angle > 15:  # Increased threshold for fewer false positives
+                    angle_severity = min((lateral_angle - 12) * 2.5, 45)  # Reduced sensitivity
+                    frame_severity = max(frame_severity, angle_severity)
+                    logging.info(f"ELBOW FLARE DETECTED - Lateral angle: {lateral_angle}°, severity={angle_severity}")
                 else:
-                    logging.debug(f"ELBOW FLARE NOT DETECTED - Lateral angle: {lateral_angle}° below threshold (10°)")
-            else:
-                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: elbow_lateral_angle metric not available")
+                    logging.debug(f"ELBOW FLARE NOT DETECTED - Lateral angle: {lateral_angle}° below strict threshold (15°)")
             
-            # Add summary debug info
-            if severity == 0:
-                # Check what metrics are available for debugging
-                available_metrics = list(frame_data.metrics.keys())
-                logging.debug(f"ELBOW FLARE DEBUG - Frame {frame_num}: No detection, available metrics: {available_metrics}")
-                if 'elbow_flare_front_view' not in frame_data.metrics and 'elbow_lateral_angle' not in frame_data.metrics:
-                    logging.warning(f"ELBOW FLARE WARNING - Frame {frame_num}: No elbow flare metrics calculated - may indicate pose detection issues")
-                logging.debug(f"NO ELBOW FLARE detected in frame {frame_num} ({current_phase_name} phase)")
+            # Only assign severity if we detected meaningful flare in this Release phase frame
+            if frame_severity > 0:
+                severity = frame_severity
+                logging.info(f"ELBOW FLARE DETECTED - Frame {frame_num} (Release phase): severity={severity}")
             else:
-                logging.info(f"ELBOW FLARE total severity: {severity} in frame {frame_num} ({current_phase_name} phase)")
+                logging.debug(f"NO ELBOW FLARE - Frame {frame_num} (Release phase): passed strict thresholds")
                     
         elif flaw_key == 'guide_hand_thumb_flick':
+            # IMPROVED THUMB FLICK DETECTION: Balance sensitivity with accuracy
             if 'guide_hand_thumb_angle' in frame_data.metrics:
                 actual = frame_data.metrics['guide_hand_thumb_angle']
-                # Very restrictive detection - only flag significant thumb movements during immediate follow-through
-                # This ensures we only catch cases where thumb is actively pushing ball through follow-through
                 
-                # Require substantial thumb movement (25+ degrees) to indicate active interference
-                if actual > 25 and actual > flaw_config['threshold']:
-                    severity = min(actual - 20, 30)  # Conservative severity calculation
-                    logging.debug(f"THUMB FLICK detected in immediate follow-through frame {frame_num}: {actual:.1f}°")
+                # EXPANDED TIMING: Analyze during Release AND Follow-Through phases (not just Follow-Through)
+                current_phase_name = None
+                is_relevant_phase = False
+                
+                if shot_phases:
+                    for phase in shot_phases:
+                        if phase.name in ['Release', 'Follow-Through'] and phase.start_frame <= frame_num <= phase.end_frame:
+                            current_phase_name = phase.name
+                            is_relevant_phase = True
+                            break
+                
+                # Skip if not in Release or Follow-Through phase
+                if not is_relevant_phase:
+                    logging.debug(f"THUMB FLICK SKIPPED - Frame {frame_num}: not in Release/Follow-Through phase")
+                    continue
+                
+                # BALANCED THRESHOLD: Catch obvious thumb flicks while avoiding false positives
+                # Use 25° threshold (was 35°) to detect clear interference
+                if actual > 25:  # Lowered from 35 to 25 degrees to catch obvious cases
+                    # Enhanced severity calculation - more sensitive to obvious violations
+                    base_severity = (actual - 20) * 1.2  # Start penalty at 20° deviation
+                    severity = min(base_severity, 30)  # Cap at reasonable maximum
+                    
+                    # Extra penalty for extreme thumb movement (>40°)
+                    if actual > 40:
+                        severity = min(severity + 10, 40)
+                    
+                    logging.info(f"THUMB FLICK DETECTED - Frame {frame_num}: {actual:.1f}° ({current_phase_name}), severity={severity:.1f}")
+                else:
+                    logging.debug(f"NO THUMB FLICK - Frame {frame_num}: {actual:.1f}° within acceptable range (<25°)")
                     
         elif flaw_key == 'guide_hand_under_ball':
-            # Enhanced guide hand positioning analysis
+            # PHASE 5 REFINEMENT: Focused detection for ball-supporting violations
             if 'guide_hand_position_angle' in frame_data.metrics and 'guide_hand_vertical_offset' in frame_data.metrics:
-                # 🎯 IMPROVED: Only analyze guide hand position during core release moment
-                # Skip frames that are too far from the peak release point to avoid post-release hand drop
+                # STRICT TIMING: Only analyze at peak release moment (±2 frames)
                 max_wrist_vel_frame = -1
                 for phase in shot_phases:
                     if phase.name == 'Release' and phase.key_moment_frame is not None:
                         max_wrist_vel_frame = phase.key_moment_frame
                         break
                 
-                # Only check guide hand position within ±3 frames of peak release point
+                # TIGHTER TIMING WINDOW: Only ±2 frames from release (was ±3)
                 if max_wrist_vel_frame != -1:
                     distance_from_release = abs(frame_num - max_wrist_vel_frame)
-                    if distance_from_release > 3:  # Skip frames too far from actual ball release
-                        logging.info(f"GUIDE HAND SKIPPED - Frame {frame_num}: {distance_from_release} frames from release point (frame {max_wrist_vel_frame})")
+                    if distance_from_release > 2:  # Stricter timing requirement
+                        logging.debug(f"GUIDE HAND UNDER SKIPPED - Frame {frame_num}: {distance_from_release} frames from release")
                         continue
                 
-                angle = frame_data.metrics['guide_hand_position_angle']
                 vertical_offset = frame_data.metrics['guide_hand_vertical_offset']
                 horizontal_offset = frame_data.metrics.get('guide_hand_horizontal_offset', 0)
                 
-                # Determine guide hand position type based on angle and vertical offset
-                # In video coordinates: negative Y = above, positive Y = below
-                is_on_top = vertical_offset < -15  # Guide hand significantly above shooting hand
-                is_underneath = vertical_offset > 15  # Guide hand significantly below shooting hand
-                is_too_centered = horizontal_offset < 20  # Hands too close horizontally
+                # REFINED DETECTION: Focus only on genuinely problematic "under ball" positioning
+                # Must be significantly underneath to indicate ball-supporting (not natural hand drop)
+                is_significantly_underneath = vertical_offset > 25  # Stricter threshold (was 15)
+                is_too_centered = horizontal_offset < 15  # Stricter centering threshold (was 20)
                 
-                # 🎯 FIXED: guide_hand_under_ball should ONLY detect "underneath" and "too centered" issues
-                # "On top" positioning is handled exclusively by the guide_hand_on_top flaw type
-                
-                # Only check for underneath and centered issues, NOT on top
-                if is_underneath:
-                    severity = min(abs(vertical_offset) / 3, 30)  # Updates main loop severity variable
-                    logging.info(f"GUIDE HAND UNDER BALL DETECTED - Frame {frame_num}: under ball, severity={severity:.1f}")
-                elif is_too_centered:
-                    severity = min((30 - horizontal_offset) / 2, 25)  # Updates main loop severity variable
-                    logging.info(f"GUIDE HAND UNDER BALL DETECTED - Frame {frame_num}: too centered/interfering, severity={severity:.1f}")
-                elif is_on_top:
-                    logging.info(f"GUIDE HAND UNDER BALL SKIPPED - Frame {frame_num}: detected 'on top' positioning, handled by guide_hand_on_top flaw")
+                # BIOMECHANICAL FOCUS: Only flag positions that would actually support ball weight
+                if is_significantly_underneath:
+                    # Guide hand is genuinely underneath ball, supporting weight - problematic
+                    severity = min((vertical_offset - 20) / 3, 25)  # Conservative severity
+                    logging.info(f"GUIDE HAND UNDER BALL CONFIRMED - Frame {frame_num}: {vertical_offset:.1f} below shooting hand, severity={severity:.1f}")
+                elif is_too_centered and abs(vertical_offset) < 10:  # Centered AND at same height
+                    # Both hands at same level and close together - dual control issue
+                    severity = min((20 - horizontal_offset) / 2, 20)  # Lower severity for centering
+                    logging.info(f"GUIDE HAND CENTERED CONFIRMED - Frame {frame_num}: hands too centered ({horizontal_offset:.1f}), severity={severity:.1f}")
                 else:
-                    logging.info(f"GUIDE HAND UNDER BALL OK - Frame {frame_num}: proper side positioning")
+                    logging.debug(f"GUIDE HAND UNDER OK - Frame {frame_num}: vertical={vertical_offset:.1f}, horizontal={horizontal_offset:.1f}")
                     
         elif flaw_key == 'guide_hand_on_top':
-            # Guide hand on top detection - separate flaw type for better classification
+            # PHASE 5 REFINEMENT: Precise detection for "on top" positioning violations
             if 'guide_hand_position_angle' in frame_data.metrics and 'guide_hand_vertical_offset' in frame_data.metrics:
-                # Apply same timing restrictions as guide_hand_under_ball
+                # STRICT TIMING: Same ±2 frame window as other guide hand detections
                 max_wrist_vel_frame = -1
                 for phase in shot_phases:
                     if phase.name == 'Release' and phase.key_moment_frame is not None:
                         max_wrist_vel_frame = phase.key_moment_frame
                         break
                 
-                # Only check guide hand position within ±3 frames of peak release point
+                # TIGHTER TIMING WINDOW: ±2 frames from release (was ±3)
                 if max_wrist_vel_frame != -1:
                     distance_from_release = abs(frame_num - max_wrist_vel_frame)
-                    if distance_from_release > 3:
-                        logging.info(f"GUIDE HAND ON TOP SKIPPED - Frame {frame_num}: {distance_from_release} frames from release point")
+                    if distance_from_release > 2:
+                        logging.debug(f"GUIDE HAND ON TOP SKIPPED - Frame {frame_num}: {distance_from_release} frames from release")
                         continue
                 
                 vertical_offset = frame_data.metrics['guide_hand_vertical_offset']
                 horizontal_offset = frame_data.metrics.get('guide_hand_horizontal_offset', 0)
                 
-                # Detect guide hand positioned on top of ball (negative vertical offset)
-                if vertical_offset < -flaw_config['threshold']:  # Guide hand above shooting hand
-                    severity = min(abs(vertical_offset) / 2, 30)  # Scale severity - updates main loop variable
-                    logging.info(f"GUIDE HAND ON TOP DETECTED - Frame {frame_num}: vertical_offset={vertical_offset:.1f}, severity={severity:.1f}")
+                # REFINED DETECTION: Only flag genuinely problematic "on top" positioning
+                # Must be significantly above shooting hand to indicate control interference
+                is_significantly_on_top = vertical_offset < -20  # Stricter threshold (was -15)
+                
+                # BIOMECHANICAL FOCUS: Only flag positions that would interfere with ball control
+                if is_significantly_on_top:
+                    severity = min(abs(vertical_offset - 15) / 2.5, 25)  # Conservative severity scaling
+                    logging.info(f"GUIDE HAND ON TOP CONFIRMED - Frame {frame_num}: {vertical_offset:.1f} above shooting hand, severity={severity:.1f}")
                 else:
-                    logging.info(f"GUIDE HAND ON TOP OK - Frame {frame_num}: vertical_offset={vertical_offset:.1f} within range")
+                    logging.debug(f"GUIDE HAND ON TOP OK - Frame {frame_num}: vertical={vertical_offset:.1f} within acceptable range")
                     
         elif flaw_key == 'shot_timing_inefficient':
             # Analyze shot timing efficiency (renamed from rushing_shot for single shots)
@@ -1273,25 +1287,29 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                     severity = min((wrist_angle - 90) / 2, 35)
                     
         elif flaw_key == 'shot_lacks_fluidity':
-            # Enhanced fluidity analysis using advanced motion smoothness detection
-            fluidity_severity = 0
+            # PHASE 4 REFINEMENT: Replace simple detection with biomechanically-focused approach
+            # Skip per-frame detection - fluidity requires full motion analysis
+            # This will be handled by the advanced fluidity analysis system which provides
+            # proper acceleration analysis, rhythm detection, and velocity consistency checks
+            # Only flag frames during Release phase for specific acceleration spikes
+            severity = 0
             
-            # Check basic motion smoothness metric
-            if 'motion_smoothness' in frame_data.metrics:
-                smoothness = frame_data.metrics['motion_smoothness']
-                # High smoothness values indicate jerky motion
-                if smoothness > flaw_config['threshold']:
-                    fluidity_severity += min(smoothness * 15, 25)
-            
-            # Check velocity consistency (detect abrupt speed changes)
-            if 'wrist_vertical_velocity' in frame_data.metrics:
-                velocity = abs(frame_data.metrics['wrist_vertical_velocity'])
-                # Very high velocities suggest rushed/jerky motion
-                if velocity > 400:  # Threshold for concerning velocity
-                    fluidity_severity += min((velocity - 400) / 20, 20)
-            
-            # Combine both measures for overall fluidity assessment
-            severity = min(fluidity_severity, 40)  # Cap severity
+            # Only detect specific acceleration anomalies during Release phase
+            if shot_phases:
+                in_release_phase = False
+                for phase in shot_phases:
+                    if (phase.name == 'Release' and 
+                        phase.start_frame <= frame_num <= phase.end_frame):
+                        in_release_phase = True
+                        break
+                
+                if in_release_phase:
+                    # Look for extreme velocity spikes that indicate jerky motion
+                    if 'wrist_vertical_velocity' in frame_data.metrics:
+                        velocity = abs(frame_data.metrics['wrist_vertical_velocity'])
+                        # Much stricter threshold - only flag truly excessive velocities
+                        if velocity > 600:  # Raised from 400 to 600
+                            severity = min((velocity - 600) / 30, 25)  # Conservative severity
                     
         # Remove the problematic inconsistent_release_point check for single shots
         # Remove rushing_shot and follow_through_early_drop as they need multiple shots for context
@@ -1303,13 +1321,84 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                 worst_severity = severity
                 worst_frame = frame_num
     
-    # Only report flaw if we have sufficient evidence and meaningful severity
+    # ENHANCED CONSISTENCY REQUIREMENTS - Apply stricter standards for elbow flare
     if flaw_evidence_count >= min_evidence_frames and severity_values:
         # Calculate average severity to ensure consistency
         avg_severity = sum(severity_values) / len(severity_values)
-        if avg_severity > 3:  # Lowered minimum meaningful severity threshold from 5 to 3
-            flaw_detected = True
-            worst_severity = avg_severity  # Use average rather than worst for more balanced reporting
+        
+        # STRICTER REQUIREMENTS for elbow flare to reduce false positives
+        if flaw_key == 'elbow_flare':
+            # Require elbow flare to be detected in at least 60% of Release phase frames
+            total_release_frames = 0
+            if shot_phases:
+                for phase in shot_phases:
+                    if phase.name == 'Release':
+                        total_release_frames = phase.end_frame - phase.start_frame + 1
+                        break
+            
+            required_consistency = max(int(total_release_frames * 0.6), 2)  # At least 60% or minimum 2 frames
+            consistency_met = flaw_evidence_count >= required_consistency
+            severity_meaningful = avg_severity > 5  # Higher minimum severity for elbow flare
+            
+            if consistency_met and severity_meaningful:
+                flaw_detected = True
+                worst_severity = avg_severity
+                logging.info(f"ELBOW FLARE CONFIRMED - Detected in {flaw_evidence_count}/{total_release_frames} Release frames ({flaw_evidence_count/max(total_release_frames,1)*100:.1f}%), avg severity: {avg_severity:.1f}")
+            else:
+                logging.info(f"ELBOW FLARE REJECTED - Consistency: {flaw_evidence_count}/{required_consistency}, severity: {avg_severity:.1f} (need >5)")
+                
+        # REFINED KNEE BEND REQUIREMENTS - Single-point analysis with higher severity threshold
+        elif flaw_key in ['insufficient_knee_bend', 'excessive_knee_bend']:
+            # Knee bend is analyzed at single deepest point, so different consistency logic
+            severity_meaningful = avg_severity > 8  # Higher threshold for knee bend flaws
+            
+            if severity_meaningful:
+                flaw_detected = True
+                worst_severity = avg_severity
+                logging.info(f"{flaw_key.upper()} CONFIRMED - Single-point analysis, severity: {avg_severity:.1f}")
+            else:
+                logging.info(f"{flaw_key.upper()} REJECTED - Severity: {avg_severity:.1f} (need >8 for single-point detection)")
+                
+        # REFINED WRIST SNAP REQUIREMENTS - Peak-moment analysis with higher severity threshold  
+        elif flaw_key == 'poor_wrist_snap':
+            # Wrist snap is analyzed at peak Follow-Through moment, so single-point logic
+            severity_meaningful = avg_severity > 10  # Higher threshold for wrist snap (critical for backspin)
+            
+            if severity_meaningful:
+                flaw_detected = True
+                worst_severity = avg_severity
+                logging.info(f"POOR WRIST SNAP CONFIRMED - Peak Follow-Through analysis, severity: {avg_severity:.1f}")
+            else:
+                logging.info(f"POOR WRIST SNAP REJECTED - Severity: {avg_severity:.1f} (need >10 for peak-moment detection)")
+                
+        # REFINED FLUIDITY REQUIREMENTS - Minimal per-frame detection, rely on advanced analysis
+        elif flaw_key == 'shot_lacks_fluidity':
+            # Very high threshold since advanced fluidity analysis handles main detection
+            severity_meaningful = avg_severity > 15  # Only flag extreme velocity spikes
+            
+            if severity_meaningful:
+                flaw_detected = True
+                worst_severity = avg_severity
+                logging.info(f"SHOT FLUIDITY CONFIRMED - Extreme velocity spike detected, severity: {avg_severity:.1f}")
+            else:
+                logging.info(f"SHOT FLUIDITY REJECTED - Severity: {avg_severity:.1f} (deferred to advanced fluidity analysis)")
+                
+        # REFINED GUIDE HAND REQUIREMENTS - Release-moment precision with higher severity thresholds
+        elif flaw_key in ['guide_hand_thumb_flick', 'guide_hand_under_ball', 'guide_hand_on_top']:
+            # Guide hand flaws require precise timing detection at release moment
+            severity_meaningful = avg_severity > 12  # Higher threshold for guide hand flaws (critical for shot consistency)
+            
+            if severity_meaningful:
+                flaw_detected = True
+                worst_severity = avg_severity
+                logging.info(f"{flaw_key.upper()} CONFIRMED - Release-moment analysis, severity: {avg_severity:.1f}")
+            else:
+                logging.info(f"{flaw_key.upper()} REJECTED - Severity: {avg_severity:.1f} (need >12 for guide hand precision detection)")
+        else:
+            # Standard requirements for other flaws
+            if avg_severity > 3:  # Standard minimum severity threshold 
+                flaw_detected = True
+                worst_severity = avg_severity
     
     return flaw_detected, worst_frame, worst_severity
 
@@ -1964,8 +2053,8 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 break
 
             try:
-                # Log progress every 25 frames for deployment monitoring
-                if current_frame_idx % 25 == 0:
+                # Log progress every 50 frames to reduce logging overhead
+                if current_frame_idx % 50 == 0:
                     elapsed = time.time() - start_time
                     logging.info(f"Processing frame {current_frame_idx}/{max_frames} ({elapsed:.1f}s elapsed)")
                     
@@ -2125,11 +2214,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
 
                         processed_frames_data.append(FrameData(current_frame_idx, results, frame_metrics))
                         
-                        # Debug: Log frame metrics for elbow analysis
-                        elbow_metrics = {k: v for k, v in frame_metrics.items() if 'elbow' in k.lower()}
-                        if elbow_metrics:
-                            logging.debug(f"Frame {current_frame_idx} elbow metrics: {elbow_metrics}")
-                        
                     except Exception as e:
                         logging.warning(f"Error calculating metrics for frame {current_frame_idx}: {e}")
                         processed_frames_data.append(FrameData(current_frame_idx, results, {}))
@@ -2144,8 +2228,8 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             current_frame_idx += 1
             frames_processed += 1
             
-            # Garbage collection every 10 frames for memory management
-            if frames_processed % 10 == 0:
+            # Garbage collection every 20 frames for memory management (reduced frequency)
+            if frames_processed % 20 == 0:
                 gc.collect()
 
     except Exception as e:
@@ -2362,11 +2446,33 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         original_frame_index = 0  # Track the frame index within the trimmed shot analysis
         
         # Pre-calculate flaw frame numbers for efficient lookup
+        # Create mapping of absolute frame numbers to flaw data for efficient lookup during capture
+        # EXCLUDE motion/timing-based flaws that represent the entire shot process, not specific moments
+        motion_timing_flaws = {
+            'shot_lacks_fluidity',
+            'shot_timing_inefficient', 
+            'follow_through_timing',
+            'balance_issues'  # Balance issues are often about overall stability, not a specific moment
+        }
+        
         flaw_frames = {}
         for flaw in detailed_flaws[:5]:  # Capture up to 5 flaws instead of 3
-            flaw_frames[flaw['frame_number']] = flaw
+            # Skip flaws that are about overall motion/timing rather than specific positions
+            if flaw['flaw_type'] not in motion_timing_flaws:
+                absolute_frame = flaw['frame_number']  # Now correctly contains absolute frame number
+                flaw_frames[absolute_frame] = flaw
+                logging.info(f"Will capture still for flaw: {flaw['flaw_type']} at frame {absolute_frame}")
+            else:
+                logging.info(f"Skipping still capture for motion/timing flaw: {flaw['flaw_type']} (applies to entire shot)")
         
         logging.info(f"Pre-calculated flaw frames for capture: {list(flaw_frames.keys())}")
+        logging.info(f"Shot starts at frame: {shot_start_frame}")
+        for flaw in detailed_flaws[:5]:
+            relative_frame = flaw['frame_number'] - shot_start_frame
+            if flaw['flaw_type'] not in motion_timing_flaws:
+                logging.info(f"Flaw '{flaw['flaw_type']}': absolute_frame={flaw['frame_number']}, relative_frame={relative_frame}")
+            else:
+                logging.info(f"Motion/timing flaw '{flaw['flaw_type']}': documented in report only (no still needed)")
         
         # Process every 3rd frame in production to improve performance
         frame_skip = 3  # Increased from 2 to 3 for better performance
@@ -2377,14 +2483,15 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 break
 
             # Check for flaw stills efficiently (only if frame has a flaw)
-            # Note: original_frame_index now represents the frame within the trimmed shot analysis
-            if original_frame_index in flaw_frames:
+            # FIXED: Use the actual flaw frame number from detection, not relative index
+            actual_flaw_frame = shot_start_frame + original_frame_index
+            if actual_flaw_frame in flaw_frames:
                 try:
                     if original_frame_index < len(processed_frames_data) and processed_frames_data[original_frame_index].landmarks_raw:
                         results_to_draw = processed_frames_data[original_frame_index].landmarks_raw
-                        flaw = flaw_frames[original_frame_index]
+                        flaw = flaw_frames[actual_flaw_frame]
                         
-                        logging.info(f"Capturing flaw still for {flaw['flaw_type']} at frame {original_frame_index} (original video frame {shot_start_frame + original_frame_index})")
+                        logging.info(f"FLAW STILL CAPTURE: {flaw['flaw_type']} at analysis_frame={original_frame_index}, video_frame={actual_flaw_frame}")
                         flaw_overlay_frame = create_flaw_overlay(frame.copy(), flaw, results_to_draw, width, height)
                         
                         # Apply orientation correction before saving the still
@@ -2532,3 +2639,80 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         'improvement_plan_pdf': improvement_plan_pdf,
         'video_appears_sideways': video_appears_sideways
     }
+
+
+def analyze_basketball_shot(video_path, job_id=None):
+    """
+    Main entry point for basketball shot analysis
+    
+    Args:
+        video_path (str): Path to the video file to analyze
+        job_id (str): Optional job ID for tracking
+        
+    Returns:
+        dict: Complete analysis results
+    """
+    if job_id is None:
+        job_id = f"analysis_{int(time.time())}"
+    
+    # Create a VideoAnalysisJob object
+    job = VideoAnalysisJob(
+        job_id=job_id,
+        user_id="default_user",
+        video_url=video_path,
+        status="PROCESSING"
+    )
+    
+    # Load ideal shot data
+    ideal_shot_data = load_ideal_shot_data("ideal_shot_guide.json")
+    
+    # Process the video
+    try:
+        results = process_video_for_analysis(job, ideal_shot_data)
+        job.status = "COMPLETED"
+        logging.info(f"Analysis completed successfully for job {job_id}")
+        return results
+    except Exception as e:
+        job.status = "FAILED"
+        logging.error(f"Analysis failed for job {job_id}: {e}")
+        return {
+            'error': str(e),
+            'job_id': job_id,
+            'status': 'FAILED'
+        }
+
+
+if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('basketball_analysis.log')
+        ]
+    )
+    
+    # Example usage
+    import sys
+    if len(sys.argv) > 1:
+        video_file = sys.argv[1]
+        if os.path.exists(video_file):
+            logging.info(f"Starting analysis of: {video_file}")
+            results = analyze_basketball_shot(video_file)
+            
+            if 'error' not in results:
+                print(f"✅ Analysis completed successfully!")
+                print(f"📊 Found {len(results.get('detailed_flaws', []))} shooting flaws")
+                print(f"🎯 Identified {len(results.get('shot_phases', []))} shot phases")
+                if results.get('output_video_path'):
+                    print(f"🎬 Analysis video saved to: {results['output_video_path']}")
+                if results.get('improvement_plan_pdf'):
+                    print(f"📄 Improvement plan saved to: {results['improvement_plan_pdf']}")
+            else:
+                print(f"❌ Analysis failed: {results['error']}")
+        else:
+            print(f"❌ Video file not found: {video_file}")
+    else:
+        print("🏀 Basketball Shot Analysis Service")
+        print("Usage: python basketball_analysis_service.py <video_file>")
