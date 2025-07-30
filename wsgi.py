@@ -26,6 +26,9 @@ try:
     # Import the Flask application
     from web_app import app as application
     
+    # Also make it available as 'app' for compatibility
+    app = application
+    
     # Production-specific configurations
     application.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'production-secret-key-change-me')
     application.config['DEBUG'] = False
@@ -38,7 +41,15 @@ try:
     
 except ImportError as e:
     logging.error(f"Failed to import application: {e}")
-    raise
+    # Fallback: try direct import
+    try:
+        import web_app
+        application = web_app.app
+        app = application
+        logging.info("Fallback import successful")
+    except Exception as fallback_error:
+        logging.error(f"Fallback import failed: {fallback_error}")
+        raise
 except Exception as e:
     logging.error(f"Error initializing application: {e}")
     raise
