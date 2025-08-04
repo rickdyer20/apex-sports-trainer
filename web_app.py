@@ -1234,17 +1234,8 @@ def about():
     """About page explaining the analysis"""
     return render_template('about.html')
 
-@app.route('/health')
-def health():
-    """Simple health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'service': 'Basketball Analysis Service',
-        'timestamp': datetime.now().isoformat()
-    })
-
 @app.route('/api/health')
-def health_check():
+def health_check_api():
     """Comprehensive health check endpoint"""
     health_status = {
         'status': 'healthy',
