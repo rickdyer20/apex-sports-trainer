@@ -4,6 +4,17 @@ import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# PRODUCTION FIX: Comprehensive MediaPipe configuration for App Engine
+os.environ['MEDIAPIPE_CACHE_DIR'] = '/tmp'
+os.environ['GLOG_logtostderr'] = '1'  # Prevent MediaPipe logging to files
+os.environ['MEDIAPIPE_DISABLE_GPU'] = '1'  # Disable GPU to avoid permission issues
+os.environ['XDG_CACHE_HOME'] = '/tmp'  # Redirect XDG cache to writable directory
+# Set TensorFlow cache to writable location
+os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub_cache'
+# Critical: Disable model downloads and use bundled models
+os.environ['MEDIAPIPE_DISABLE_MODEL_DOWNLOAD'] = '1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logging
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -14,6 +25,18 @@ import subprocess
 import shutil
 import gc
 from datetime import datetime
+
+# APEX SPORTS, LLC - Company Configuration
+COMPANY_INFO = {
+    'legal_name': 'APEX SPORTS, LLC',
+    'ein': '39-3553235',  # Federal Tax ID
+    'service_name': 'Basketball Analysis Service',
+    'domain': 'apexsports-llc.com',  # Professional domain
+    'support_email': 'support@apexsports-llc.com',  # Professional email
+    'company_address': 'TBD - Update with business address',
+    'founded_year': 2025,
+    'version': 'v9.0'
+}
 
 # Optional imports with graceful fallbacks
 try:
@@ -38,14 +61,121 @@ def get_pose_model():
     """Lazy initialization of MediaPipe pose model to avoid Docker startup issues"""
     global pose_model
     if pose_model is None:
-        pose_model = mp_pose.Pose(
-            static_image_mode=False, 
-            model_complexity=0,  # Use faster, less accurate model
-            min_detection_confidence=0.5, 
-            min_tracking_confidence=0.5,
-            enable_segmentation=False  # Disable segmentation for better performance
-        )
+        try:
+            # Create necessary cache directories in writable location
+            os.makedirs('/tmp/mediapipe_cache', exist_ok=True)
+            os.makedirs('/tmp/tfhub_cache', exist_ok=True)
+            
+            # CRITICAL: Monkey-patch MediaPipe's file operations to use writable directory
+            setup_mediapipe_filesystem_patch()
+            
+            # Initialize MediaPipe with minimal model complexity for App Engine
+            pose_model = mp_pose.Pose(
+                static_image_mode=False, 
+                model_complexity=1,  # Use medium model that might be more available
+                min_detection_confidence=0.3,  # Lower threshold for better detection
+                min_tracking_confidence=0.3,   # Lower threshold for better tracking
+                enable_segmentation=False  # Disable segmentation for better performance
+            )
+            
+            # Test the model to ensure it works
+            test_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            test_results = pose_model.process(test_frame)
+            
+            logging.info("MediaPipe pose model initialized and tested successfully")
+        except Exception as e:
+            logging.error(f"Failed to initialize MediaPipe pose model: {e}")
+            # Try fallback approach with bundled models only
+            try:
+                logging.info("Attempting fallback with bundled models...")
+                setup_bundled_models_only()
+                pose_model = mp_pose.Pose(
+                    static_image_mode=False, 
+                    model_complexity=0,  # Fall back to lite model
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5,
+                    enable_segmentation=False
+                )
+                logging.info("Fallback MediaPipe initialization successful")
+            except Exception as fallback_error:
+                logging.error(f"Fallback also failed: {fallback_error}")
+                pose_model = None
+                raise RuntimeError(f"MediaPipe initialization failed: {e}")
     return pose_model
+
+def setup_mediapipe_filesystem_patch():
+    """Patch MediaPipe's file operations to redirect to writable directory"""
+    try:
+        import builtins
+        
+        # Store original open function
+        original_open = builtins.open
+        
+        def patched_open(file, mode='r', **kwargs):
+            """Redirect MediaPipe model writes to writable directory"""
+            if isinstance(file, str):
+                # Check if this is a MediaPipe model file write operation
+                if 'mediapipe/modules' in file and file.endswith('.tflite') and ('w' in mode or 'a' in mode):
+                    # Redirect to writable location
+                    writable_path = file.replace('/layers/google.python.pip/pip/lib/python3.11/site-packages/', '/tmp/')
+                    os.makedirs(os.path.dirname(writable_path), exist_ok=True)
+                    logging.info(f"Redirecting MediaPipe model write: {file} -> {writable_path}")
+                    return original_open(writable_path, mode, **kwargs)
+                # Check if this is a MediaPipe model file read operation that doesn't exist
+                elif 'mediapipe/modules' in file and file.endswith('.tflite') and 'r' in mode:
+                    # First try original location
+                    if os.path.exists(file):
+                        return original_open(file, mode, **kwargs)
+                    # Try writable location
+                    writable_path = file.replace('/layers/google.python.pip/pip/lib/python3.11/site-packages/', '/tmp/')
+                    if os.path.exists(writable_path):
+                        logging.info(f"Redirecting MediaPipe model read: {file} -> {writable_path}")
+                        return original_open(writable_path, mode, **kwargs)
+            
+            # Default behavior for all other files
+            return original_open(file, mode, **kwargs)
+        
+        # Apply the patch
+        builtins.open = patched_open
+        logging.info("Applied MediaPipe filesystem patch")
+        
+    except Exception as e:
+        logging.warning(f"Could not apply filesystem patch: {e}")
+
+def setup_bundled_models_only():
+    """Configure MediaPipe to only use bundled models"""
+    try:
+        # Set environment variables to prevent downloads
+        os.environ['MEDIAPIPE_DISABLE_MODEL_DOWNLOAD'] = '1'
+        os.environ['GLOG_logtostderr'] = '1'
+        
+        # Create a minimal models directory structure
+        models_dir = '/tmp/mediapipe/modules'
+        os.makedirs(f'{models_dir}/pose_landmark', exist_ok=True)
+        os.makedirs(f'{models_dir}/pose_detection', exist_ok=True)
+        
+        # Try to find any existing pose models and copy them
+        import mediapipe as mp
+        mp_base = os.path.dirname(mp.__file__)
+        
+        # Look for any pose models in the installation
+        import glob
+        existing_models = glob.glob(f'{mp_base}/**/pose_*.tflite', recursive=True)
+        
+        for model_file in existing_models:
+            if os.path.exists(model_file):
+                model_name = os.path.basename(model_file)
+                target_path = f'{models_dir}/pose_landmark/{model_name}'
+                try:
+                    shutil.copy2(model_file, target_path)
+                    logging.info(f"Copied bundled model: {model_name}")
+                except Exception as e:
+                    logging.warning(f"Could not copy {model_file}: {e}")
+        
+        logging.info("Bundled models setup completed")
+        
+    except Exception as e:
+        logging.warning(f"Could not setup bundled models: {e}")
 
 mp_drawing = mp.solutions.drawing_utils
 
@@ -105,7 +235,8 @@ class AnalysisReport:
 
 def save_frames_for_ffmpeg(frames, job_id):
     """Saves frames to a temporary directory for ffmpeg processing."""
-    frame_dir = f"temp_{job_id}_frames"
+    # Use /tmp directory for App Engine compatibility
+    frame_dir = f"/tmp/temp_{job_id}_frames"
     os.makedirs(frame_dir, exist_ok=True)
     for i, frame in enumerate(frames):
         cv2.imwrite(os.path.join(frame_dir, f"frame_{i:04d}.png"), frame)
@@ -1113,12 +1244,26 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
             current_phase_name = "Unknown"
             
             if shot_phases:
+                # 🔧 FIX: Prioritize Release phase when multiple phases overlap
+                # Check for Release phase first, then fall back to other phases
+                release_phase = None
+                fallback_phase = None
+                
                 for phase in shot_phases:
                     if phase.start_frame <= frame_num <= phase.end_frame:
-                        current_phase_name = phase.name
-                        if phase.name == 'Release':  # ONLY Release phase
-                            is_release_phase = True
-                        break
+                        if phase.name == 'Release':
+                            release_phase = phase
+                            break  # Release phase found, use it
+                        elif fallback_phase is None:
+                            fallback_phase = phase  # Remember first matching phase as fallback
+                
+                # Use Release phase if found, otherwise use fallback
+                selected_phase = release_phase if release_phase else fallback_phase
+                
+                if selected_phase:
+                    current_phase_name = selected_phase.name
+                    if selected_phase.name == 'Release':
+                        is_release_phase = True
             
             # Skip if not in Release phase - eliminates false positives from natural follow-through movement
             if not is_release_phase:
@@ -1167,57 +1312,152 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                 logging.debug(f"NO ELBOW FLARE - Frame {frame_num} (Release phase): passed strict thresholds")
                     
         elif flaw_key == 'guide_hand_thumb_flick':
-            # IMPROVED THUMB FLICK DETECTION: Balance sensitivity with accuracy
+            # ULTRA-STRICT THUMB FLICK DETECTION: Only detect WELL AFTER ball has left the hand AND thumb is fully visible
             if 'guide_hand_thumb_angle' in frame_data.metrics:
                 actual = frame_data.metrics['guide_hand_thumb_angle']
                 
-                # EXPANDED TIMING: Analyze during Release AND Follow-Through phases (not just Follow-Through)
-                current_phase_name = None
-                is_relevant_phase = False
-                
-                if shot_phases:
-                    for phase in shot_phases:
-                        if phase.name in ['Release', 'Follow-Through'] and phase.start_frame <= frame_num <= phase.end_frame:
-                            current_phase_name = phase.name
-                            is_relevant_phase = True
-                            break
-                
-                # Skip if not in Release or Follow-Through phase
-                if not is_relevant_phase:
-                    logging.debug(f"THUMB FLICK SKIPPED - Frame {frame_num}: not in Release/Follow-Through phase")
+                # CRITICAL: Check thumb visibility score first - require excellent visibility
+                thumb_visibility_score = frame_data.metrics.get('thumb_visibility_score', 0)
+                if thumb_visibility_score < 2:
+                    logging.info(f"THUMB FLICK SKIPPED - Frame {frame_num}: Insufficient thumb visibility (score: {thumb_visibility_score}/3), thumb not clearly visible")
                     continue
                 
-                # BALANCED THRESHOLD: Catch obvious thumb flicks while avoiding false positives
-                # Use 25° threshold (was 35°) to detect clear interference
-                if actual > 25:  # Lowered from 35 to 25 degrees to catch obvious cases
+                # ULTRA-STRICT TIMING: Only analyze WELL into Follow-Through phase AFTER ball has clearly left hand
+                current_phase_name = None
+                is_well_post_release = False
+                frames_into_followthrough = 0
+                
+                if shot_phases:
+                    # PHASE PRIORITY FIX: Check Follow-Through phase first (most specific for thumb flick)
+                    followthrough_phase = None
+                    for phase in shot_phases:
+                        if phase.name == 'Follow-Through' and phase.start_frame <= frame_num <= phase.end_frame:
+                            followthrough_phase = phase
+                            break
+                    
+                    if followthrough_phase:
+                        current_phase_name = followthrough_phase.name
+                        frames_into_followthrough = frame_num - followthrough_phase.start_frame
+                        
+                        # ULTRA-STRICT TIMING: Wait much longer into follow-through to ensure ball has completely left hand
+                        # Significantly increased minimum frames required
+                        min_frames_required = 8  # Increased from 5 to 8 frames minimum
+                        
+                        # Additional check: Hand separation distance (if available)
+                        has_excellent_hand_separation = True  # Default to true if no distance data
+                        
+                        if frames_into_followthrough >= min_frames_required:
+                            # Check if hands have separated enough to indicate ball release
+                            if hasattr(frame_data, 'metrics') and 'hand_separation_distance' in frame_data.metrics:
+                                # Use pre-calculated hand separation distance
+                                hand_separation = frame_data.metrics['hand_separation_distance']
+                                
+                                # Require much larger hand separation for ball release confirmation
+                                if hand_separation < 80:  # Significantly increased threshold - hands too close, ball likely still in contact
+                                    has_excellent_hand_separation = False
+                                    logging.info(f"THUMB FLICK SKIPPED - Frame {frame_num}: hands too close ({hand_separation:.1f} pixels), ball likely still in contact")
+                                else:
+                                    logging.info(f"THUMB FLICK SEPARATION EXCELLENT - Frame {frame_num}: hands well separated {hand_separation:.1f} pixels, ball definitely released, thumb visibility: {thumb_visibility_score}/3")
+                            elif hasattr(frame_data, 'metrics') and 'shooting_hand_position' in frame_data.metrics:
+                                # Fallback: Calculate hand separation from stored positions
+                                try:
+                                    shooting_hand_pos = frame_data.metrics.get('shooting_hand_position', None)
+                                    guide_hand_pos = frame_data.metrics.get('guide_hand_position', None)
+                                    
+                                    if shooting_hand_pos and guide_hand_pos:
+                                        # Calculate hand separation distance
+                                        hand_separation = ((shooting_hand_pos[0] - guide_hand_pos[0])**2 + 
+                                                         (shooting_hand_pos[1] - guide_hand_pos[1])**2)**0.5
+                                        
+                                        # Require much larger hand separation for ball release confirmation
+                                        if hand_separation < 80:  # Significantly increased - hands too close, ball likely still in contact
+                                            has_excellent_hand_separation = False
+                                            logging.info(f"THUMB FLICK SKIPPED - Frame {frame_num}: hands too close ({hand_separation:.1f} pixels), ball likely still in contact")
+                                        else:
+                                            logging.info(f"THUMB FLICK SEPARATION EXCELLENT - Frame {frame_num}: hands well separated {hand_separation:.1f} pixels, ball definitely released, thumb visibility: {thumb_visibility_score}/3")
+                                except:
+                                    # If hand position data unavailable, rely on frame timing only
+                                    pass
+                            
+                            if has_excellent_hand_separation:
+                                is_well_post_release = True
+                                logging.info(f"THUMB FLICK TIMING EXCELLENT - Frame {frame_num}: Follow-Through phase, {frames_into_followthrough} frames in, angle={actual:.1f}°, thumb fully visible, ball definitely released")
+                        else:
+                            logging.info(f"THUMB FLICK SKIPPED - Frame {frame_num}: only {frames_into_followthrough} frames into follow-through (need {min_frames_required}+), ball likely still in hands")
+                    else:
+                        # Fall back to checking all phases if not in Follow-Through
+                        for phase in shot_phases:
+                            if phase.start_frame <= frame_num <= phase.end_frame:
+                                current_phase_name = phase.name
+                                break
+                
+                # Skip if not in well-post-release timing window
+                if not is_well_post_release:
+                    logging.info(f"THUMB FLICK SKIPPED - Frame {frame_num}: ball likely still in hands ({current_phase_name}, frames into follow-through: {frames_into_followthrough}), angle={actual:.1f}°")
+                    continue
+                
+                # CONSERVATIVE THRESHOLD: Only catch clear, obvious thumb flicks after ball has completely left hand
+                # INCREASED THRESHOLD: Use 25° threshold to avoid false positives from natural follow-through motion
+                if actual > 25:  # Increased from 20° to 25° to be more conservative
                     # Enhanced severity calculation - more sensitive to obvious violations
-                    base_severity = (actual - 20) * 1.2  # Start penalty at 20° deviation
-                    severity = min(base_severity, 30)  # Cap at reasonable maximum
+                    base_severity = (actual - 20) * 1.5  # Start penalty at 20° deviation, increased sensitivity
+                    severity = min(base_severity, 35)  # Increased max severity
                     
-                    # Extra penalty for extreme thumb movement (>40°)
-                    if actual > 40:
-                        severity = min(severity + 10, 40)
+                    # Extra penalty for extreme thumb movement (>35°)
+                    if actual > 35:
+                        severity = min(severity + 15, 50)
                     
-                    logging.info(f"THUMB FLICK DETECTED - Frame {frame_num}: {actual:.1f}° ({current_phase_name}), severity={severity:.1f}")
+                    logging.info(f"THUMB FLICK DETECTED - Frame {frame_num}: {actual:.1f}° (Well into Follow-Through phase, ball has completely left hand), severity={severity:.1f}")
                 else:
-                    logging.debug(f"NO THUMB FLICK - Frame {frame_num}: {actual:.1f}° within acceptable range (<25°)")
+                    logging.info(f"NO THUMB FLICK - Frame {frame_num}: {actual:.1f}° within acceptable range (<20°) after ball release")
                     
         elif flaw_key == 'guide_hand_under_ball':
             # PHASE 5 REFINEMENT: Focused detection for ball-supporting violations
             if 'guide_hand_position_angle' in frame_data.metrics and 'guide_hand_vertical_offset' in frame_data.metrics:
-                # STRICT TIMING: Only analyze at peak release moment (±2 frames)
-                max_wrist_vel_frame = -1
-                for phase in shot_phases:
-                    if phase.name == 'Release' and phase.key_moment_frame is not None:
-                        max_wrist_vel_frame = phase.key_moment_frame
-                        break
+                # IMPROVED TIMING: Analyze when ball is in shooting position through release
+                # This captures the critical period when guide hand should not support ball weight
+                is_optimal_timing = False
+                current_phase_name = None
                 
-                # TIGHTER TIMING WINDOW: Only ±2 frames from release (was ±3)
-                if max_wrist_vel_frame != -1:
-                    distance_from_release = abs(frame_num - max_wrist_vel_frame)
-                    if distance_from_release > 2:  # Stricter timing requirement
-                        logging.debug(f"GUIDE HAND UNDER SKIPPED - Frame {frame_num}: {distance_from_release} frames from release")
-                        continue
+                if shot_phases:
+                    for phase in shot_phases:
+                        if phase.start_frame <= frame_num <= phase.end_frame:
+                            current_phase_name = phase.name
+                            if phase.name in ['Release']:
+                                is_optimal_timing = True
+                            break
+                
+                # Only analyze during Release when guide hand positioning matters most
+                if is_optimal_timing:
+                    position_angle = frame_data.metrics['guide_hand_position_angle']
+                    vertical_offset = frame_data.metrics['guide_hand_vertical_offset']
+                    
+                    # Guide hand too far under ball (negative vertical offset indicates below ball)
+                    if vertical_offset < -30 and position_angle < 45:  # Under ball and low angle
+                        severity = min(abs(vertical_offset) / 2, 35)
+                        logging.info(f"GUIDE HAND UNDER BALL DETECTED - Frame {frame_num}: vertical={vertical_offset:.1f}, angle={position_angle:.1f}°, severity={severity:.1f}")
+                else:
+                    logging.debug(f"GUIDE HAND UNDER BALL SKIPPED - Frame {frame_num}: not in optimal timing phase ({current_phase_name})")
+                
+                if shot_phases:
+                    for phase in shot_phases:
+                        if phase.start_frame <= frame_num <= phase.end_frame:
+                            current_phase_name = phase.name
+                            # OPTIMAL TIMING: Late Load/Dip through Release phase
+                            if phase.name == 'Load/Dip':
+                                # Only late Load/Dip (last 3 frames) when ball is in shooting position
+                                frames_from_phase_end = phase.end_frame - frame_num
+                                if frames_from_phase_end <= 3:
+                                    is_optimal_timing = True
+                            elif phase.name == 'Release':
+                                # Entire Release phase is critical for guide hand positioning
+                                is_optimal_timing = True
+                            break
+                
+                # Skip if not in optimal timing window
+                if not is_optimal_timing:
+                    logging.debug(f"GUIDE HAND UNDER SKIPPED - Frame {frame_num}: outside optimal timing window ({current_phase_name})")
+                    continue
                 
                 vertical_offset = frame_data.metrics['guide_hand_vertical_offset']
                 horizontal_offset = frame_data.metrics.get('guide_hand_horizontal_offset', 0)
@@ -1242,19 +1482,30 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
         elif flaw_key == 'guide_hand_on_top':
             # PHASE 5 REFINEMENT: Precise detection for "on top" positioning violations
             if 'guide_hand_position_angle' in frame_data.metrics and 'guide_hand_vertical_offset' in frame_data.metrics:
-                # STRICT TIMING: Same ±2 frame window as other guide hand detections
-                max_wrist_vel_frame = -1
-                for phase in shot_phases:
-                    if phase.name == 'Release' and phase.key_moment_frame is not None:
-                        max_wrist_vel_frame = phase.key_moment_frame
-                        break
+                # IMPROVED TIMING: Analyze when ball is in shooting position through release
+                # This captures the critical period when guide hand should be to the side, not on top
+                is_optimal_timing = False
+                current_phase_name = None
                 
-                # TIGHTER TIMING WINDOW: ±2 frames from release (was ±3)
-                if max_wrist_vel_frame != -1:
-                    distance_from_release = abs(frame_num - max_wrist_vel_frame)
-                    if distance_from_release > 2:
-                        logging.debug(f"GUIDE HAND ON TOP SKIPPED - Frame {frame_num}: {distance_from_release} frames from release")
-                        continue
+                if shot_phases:
+                    for phase in shot_phases:
+                        if phase.start_frame <= frame_num <= phase.end_frame:
+                            current_phase_name = phase.name
+                            # OPTIMAL TIMING: Late Load/Dip through Release phase
+                            if phase.name == 'Load/Dip':
+                                # Only late Load/Dip (last 3 frames) when ball is in shooting position
+                                frames_from_phase_end = phase.end_frame - frame_num
+                                if frames_from_phase_end <= 3:
+                                    is_optimal_timing = True
+                            elif phase.name == 'Release':
+                                # Entire Release phase is critical for guide hand positioning
+                                is_optimal_timing = True
+                            break
+                
+                # Skip if not in optimal timing window
+                if not is_optimal_timing:
+                    logging.debug(f"GUIDE HAND ON TOP SKIPPED - Frame {frame_num}: outside optimal timing window ({current_phase_name})")
+                    continue
                 
                 vertical_offset = frame_data.metrics['guide_hand_vertical_offset']
                 horizontal_offset = frame_data.metrics.get('guide_hand_horizontal_offset', 0)
@@ -1310,7 +1561,7 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                         # Much stricter threshold - only flag truly excessive velocities
                         if velocity > 600:  # Raised from 400 to 600
                             severity = min((velocity - 600) / 30, 25)  # Conservative severity
-                    
+        
         # Remove the problematic inconsistent_release_point check for single shots
         # Remove rushing_shot and follow_through_early_drop as they need multiple shots for context
         
@@ -1320,6 +1571,38 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
             if severity > worst_severity:
                 worst_severity = severity
                 worst_frame = frame_num
+                
+                # ULTRA-PRIORITY CASE: For thumb flick, strongly prioritize much later follow-through frames with high thumb visibility
+                # This ensures we capture frames where ball has DEFINITELY left hand AND thumb is clearly visible
+                if flaw_key == 'guide_hand_thumb_flick':
+                    if shot_phases:
+                        for phase in shot_phases:
+                            if phase.name == 'Follow-Through' and phase.start_frame <= frame_num <= phase.end_frame:
+                                frames_into_followthrough = frame_num - phase.start_frame
+                                # Get thumb visibility score for this frame
+                                thumb_visibility = frame_data.metrics.get('thumb_visibility_score', 0) if frame_data and frame_data.metrics else 0
+                                
+                                # ULTRA-STRICT: Prefer frames MUCH later into follow-through with excellent thumb visibility
+                                if frames_into_followthrough >= 10 and thumb_visibility >= 2:  # Increased from 7 to 10 frames minimum
+                                    # Weight timing much more heavily to prefer later frames
+                                    current_priority_score = (frames_into_followthrough * 3) + (thumb_visibility * 2)  # Weight timing more heavily
+                                    previous_best_score = 0
+                                    
+                                    if worst_frame is not None:
+                                        # Find the frame data for the previous worst frame
+                                        previous_frame_data = None
+                                        for f_num, f_data in phase_frames:
+                                            if f_num == worst_frame:
+                                                previous_frame_data = f_data
+                                                break
+                                        previous_visibility = previous_frame_data.metrics.get('thumb_visibility_score', 0) if previous_frame_data and previous_frame_data.metrics else 0
+                                        previous_timing = worst_frame - phase.start_frame if worst_frame >= phase.start_frame else 0
+                                        previous_best_score = (previous_timing * 3) + (previous_visibility * 2)  # Match new weighting
+                                    
+                                    if worst_frame is None or current_priority_score > previous_best_score:
+                                        worst_frame = frame_num
+                                        logging.info(f"THUMB FLICK ULTRA-PRIORITY: Selected frame {frame_num} ({frames_into_followthrough} frames into follow-through, visibility: {thumb_visibility}/3, priority score: {current_priority_score})")
+                                break
     
     # ENHANCED CONSISTENCY REQUIREMENTS - Apply stricter standards for elbow flare
     if flaw_evidence_count >= min_evidence_frames and severity_values:
@@ -1383,17 +1666,21 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
             else:
                 logging.info(f"SHOT FLUIDITY REJECTED - Severity: {avg_severity:.1f} (deferred to advanced fluidity analysis)")
                 
-        # REFINED GUIDE HAND REQUIREMENTS - Release-moment precision with higher severity thresholds
+        # REFINED GUIDE HAND REQUIREMENTS - Release-moment precision with adjusted severity thresholds
         elif flaw_key in ['guide_hand_thumb_flick', 'guide_hand_under_ball', 'guide_hand_on_top']:
             # Guide hand flaws require precise timing detection at release moment
-            severity_meaningful = avg_severity > 12  # Higher threshold for guide hand flaws (critical for shot consistency)
+            # LOWERED THRESHOLD for thumb flick specifically to catch obvious cases like Brandon's
+            if flaw_key == 'guide_hand_thumb_flick':
+                severity_meaningful = avg_severity > 8  # Lowered from 12 to catch obvious thumb flicks
+            else:
+                severity_meaningful = avg_severity > 12  # Higher threshold for other guide hand flaws
             
             if severity_meaningful:
                 flaw_detected = True
                 worst_severity = avg_severity
                 logging.info(f"{flaw_key.upper()} CONFIRMED - Release-moment analysis, severity: {avg_severity:.1f}")
             else:
-                logging.info(f"{flaw_key.upper()} REJECTED - Severity: {avg_severity:.1f} (need >12 for guide hand precision detection)")
+                logging.info(f"{flaw_key.upper()} REJECTED - Severity: {avg_severity:.1f} (need >{8 if flaw_key == 'guide_hand_thumb_flick' else 12} for guide hand precision detection)")
         else:
             # Standard requirements for other flaws
             if avg_severity > 3:  # Standard minimum severity threshold 
@@ -1954,7 +2241,8 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     except Exception as e:
         logging.warning(f"Resource monitoring failed: {e}")
 
-    local_video_path = f"temp_{job.job_id}_raw.mp4"
+    # Use /tmp directory for App Engine compatibility
+    local_video_path = f"/tmp/temp_{job.job_id}_raw.mp4"
     
     try:
         download_video_from_storage(job.video_url, local_video_path)
@@ -2106,12 +2394,60 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
 
                         # Enhanced metrics for guide hand analysis
                         try:
-                            # Guide hand thumb angle (detect thumb flick) - with validation
+                            # Guide hand thumb angle (detect thumb flick) - with strict visibility validation
                             if l_thumb and l_index and l_wrist:
-                                guide_thumb_angle = calculate_angle(l_wrist, l_thumb, l_index)
-                                # Only store if angle is meaningful (avoid noise from poor landmark detection)
-                                if 30 <= guide_thumb_angle <= 150:  # Reasonable thumb angle range
-                                    frame_metrics['guide_hand_thumb_angle'] = abs(guide_thumb_angle - 90)  # Deviation from neutral
+                                # ENHANCED THUMB VISIBILITY CHECKS - Only proceed if thumb is clearly visible
+                                thumb_visibility_score = 0
+                                
+                                # Check 1: Landmark confidence (MediaPipe provides visibility score)
+                                try:
+                                    # Access landmark confidence if available
+                                    thumb_landmark = results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_THUMB]
+                                    if hasattr(thumb_landmark, 'visibility') and thumb_landmark.visibility > 0.7:
+                                        thumb_visibility_score += 1
+                                        logging.debug(f"Frame {current_frame_idx}: Thumb visibility score: {thumb_landmark.visibility:.2f}")
+                                    elif hasattr(thumb_landmark, 'visibility'):
+                                        logging.info(f"THUMB FLICK SKIPPED - Frame {current_frame_idx}: Low thumb visibility ({thumb_landmark.visibility:.2f}), thumb likely obscured")
+                                        continue
+                                except:
+                                    # If visibility not available, use geometric checks
+                                    pass
+                                
+                                # Check 2: Thumb separation from other hand landmarks
+                                if r_wrist and l_wrist:
+                                    thumb_to_shooting_hand_distance = ((l_thumb[0] - r_wrist[0])**2 + (l_thumb[1] - r_wrist[1])**2)**0.5
+                                    # Thumb should be well separated from shooting hand to be clearly visible
+                                    if thumb_to_shooting_hand_distance > 60:  # Thumb clearly separated
+                                        thumb_visibility_score += 1
+                                        logging.debug(f"Frame {current_frame_idx}: Thumb separation from shooting hand: {thumb_to_shooting_hand_distance:.1f} pixels")
+                                    else:
+                                        logging.info(f"THUMB FLICK SKIPPED - Frame {current_frame_idx}: Thumb too close to shooting hand ({thumb_to_shooting_hand_distance:.1f} pixels), likely obscured")
+                                        continue
+                                
+                                # Check 3: Thumb position relative to wrist and index (geometric validation)
+                                thumb_wrist_distance = ((l_thumb[0] - l_wrist[0])**2 + (l_thumb[1] - l_wrist[1])**2)**0.5
+                                thumb_index_distance = ((l_thumb[0] - l_index[0])**2 + (l_thumb[1] - l_index[1])**2)**0.5
+                                
+                                # Thumb should be reasonably positioned relative to hand landmarks
+                                if 15 <= thumb_wrist_distance <= 80 and 10 <= thumb_index_distance <= 60:
+                                    thumb_visibility_score += 1
+                                    logging.debug(f"Frame {current_frame_idx}: Thumb geometry valid - wrist dist: {thumb_wrist_distance:.1f}, index dist: {thumb_index_distance:.1f}")
+                                else:
+                                    logging.info(f"THUMB FLICK SKIPPED - Frame {current_frame_idx}: Invalid thumb geometry, likely tracking error or occlusion")
+                                    continue
+                                
+                                # Only proceed if thumb passes all visibility checks
+                                if thumb_visibility_score >= 2:  # Need at least 2 out of 3 checks to pass
+                                    guide_thumb_angle = calculate_angle(l_wrist, l_thumb, l_index)
+                                    # Only store if angle is meaningful (avoid noise from poor landmark detection)
+                                    if 30 <= guide_thumb_angle <= 150:  # Reasonable thumb angle range
+                                        frame_metrics['guide_hand_thumb_angle'] = abs(guide_thumb_angle - 90)  # Deviation from neutral
+                                        frame_metrics['thumb_visibility_score'] = thumb_visibility_score  # Store for debugging
+                                        logging.debug(f"Frame {current_frame_idx}: Thumb angle calculated: {guide_thumb_angle:.1f}°, visibility score: {thumb_visibility_score}")
+                                    else:
+                                        logging.info(f"THUMB FLICK SKIPPED - Frame {current_frame_idx}: Invalid thumb angle ({guide_thumb_angle:.1f}°), likely tracking error")
+                                else:
+                                    logging.info(f"THUMB FLICK SKIPPED - Frame {current_frame_idx}: Insufficient thumb visibility score ({thumb_visibility_score}/3)")
                             
                             # Guide hand position analysis (should be on side of ball)
                             if l_wrist and r_wrist and l_elbow:
@@ -2129,6 +2465,11 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                                     frame_metrics['guide_hand_position_angle'] = guide_position_angle
                                     frame_metrics['guide_hand_vertical_offset'] = guide_dy
                                     frame_metrics['guide_hand_horizontal_offset'] = abs(guide_dx)
+                                    
+                                    # Store actual hand positions for ball release detection
+                                    frame_metrics['shooting_hand_position'] = r_wrist
+                                    frame_metrics['guide_hand_position'] = l_wrist
+                                    frame_metrics['hand_separation_distance'] = hand_distance
                         except:
                             pass
                         
@@ -2290,14 +2631,18 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
             # Release phase should end shortly after peak wrist velocity, not extend into follow-through
             release_end = min(frames_processed - 1, max_wrist_vel_frame + 8)  # Reduced from 15 to 8 frames after release
             min_release_duration = int(fps * 0.3) if fps > 0 else 9  # Minimum 0.3 seconds
-            release_start = max(max_wrist_vel_frame - 5, max_wrist_vel_frame - min_release_duration//2)
+            release_start_calc = max(max_wrist_vel_frame - 5, max_wrist_vel_frame - min_release_duration//2)
+            
+            # 🔧 FIX: Ensure release_start is never negative (was causing elbow flare detection to be skipped)
+            release_start = max(0, release_start_calc)
             
             shot_phases.append(ShotPhase('Release', release_start, release_end, max_wrist_vel_frame))
             logging.info(f"Release phase: frames {release_start}-{release_end} ({(release_end-release_start)/fps:.2f}s duration) - focuses on ball release period")
             
             # Create Follow-Through phase to capture wrist snap during and immediately after ball release
             # Follow-through should start during release (overlap) to capture the actual wrist snap motion
-            follow_through_start = max_wrist_vel_frame - 2  # Start 2 frames before peak wrist velocity
+            follow_through_start_calc = max_wrist_vel_frame - 2  # Start 2 frames before peak wrist velocity
+            follow_through_start = max(0, follow_through_start_calc)  # 🔧 FIX: Ensure never negative
             follow_through_end = min(frames_processed - 1, max_wrist_vel_frame + 12)  # Extended for complete follow-through
             if follow_through_start >= 0 and follow_through_start < frames_processed:
                 shot_phases.append(ShotPhase('Follow-Through', follow_through_start, follow_through_end, max_wrist_vel_frame))
@@ -2410,7 +2755,8 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         }
 
     # --- Video Generation (Robust Pipeline) ---
-    output_video_path = f"temp_{job.job_id}_analyzed.mp4"
+    # Use /tmp directory for App Engine compatibility
+    output_video_path = f"/tmp/temp_{job.job_id}_analyzed.mp4"
     video_generated = False
     
     try:
@@ -2483,21 +2829,24 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 break
 
             # Check for flaw stills efficiently (only if frame has a flaw)
-            # FIXED: Use the actual flaw frame number from detection, not relative index
-            actual_flaw_frame = shot_start_frame + original_frame_index
-            if actual_flaw_frame in flaw_frames:
+            # FIXED: Use the correct frame matching - flaw_frames already contains absolute frame numbers
+            # Since video was repositioned to shot_start_frame, original_frame_index represents
+            # the offset from shot_start_frame, so we need to add shot_start_frame to get absolute frame
+            current_absolute_frame = shot_start_frame + original_frame_index
+            if current_absolute_frame in flaw_frames:
                 try:
                     if original_frame_index < len(processed_frames_data) and processed_frames_data[original_frame_index].landmarks_raw:
                         results_to_draw = processed_frames_data[original_frame_index].landmarks_raw
-                        flaw = flaw_frames[actual_flaw_frame]
+                        flaw = flaw_frames[current_absolute_frame]
                         
-                        logging.info(f"FLAW STILL CAPTURE: {flaw['flaw_type']} at analysis_frame={original_frame_index}, video_frame={actual_flaw_frame}")
+                        logging.info(f"FLAW STILL CAPTURE: {flaw['flaw_type']} at analysis_frame={original_frame_index}, video_frame={current_absolute_frame}")
                         flaw_overlay_frame = create_flaw_overlay(frame.copy(), flaw, results_to_draw, width, height)
                         
                         # Apply orientation correction before saving the still
                         flaw_overlay_frame = detect_and_correct_orientation(flaw_overlay_frame)
                         
-                        flaw_still_name = f"temp_{job.job_id}_flaw_{flaw['flaw_type']}_frame_{flaw['frame_number']}.png"
+                        # Use /tmp directory for App Engine compatibility
+                        flaw_still_name = f"/tmp/temp_{job.job_id}_flaw_{flaw['flaw_type']}_frame_{flaw['frame_number']}.png"
                         cv2.imwrite(flaw_still_name, flaw_overlay_frame)
                         flaw_stills_captured.append({
                             'file_path': flaw_still_name,
@@ -2582,22 +2931,50 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     # Generate PDF with enhanced error handling
     improvement_plan_pdf = None
     try:
+        # Convert objects to dictionaries for PDF generation compatibility
+        shot_phases_data = []
+        for phase in shot_phases:
+            shot_phases_data.append({
+                'name': phase.name,
+                'start_frame': phase.start_frame,
+                'end_frame': phase.end_frame,
+                'key_moment_frame': phase.key_moment_frame
+            })
+            
+        feedback_points_data = []
+        for fb_point in feedback_points:
+            feedback_points_data.append({
+                'frame_number': fb_point.frame_number,
+                'discrepancy': fb_point.discrepancy,
+                'ideal_range': fb_point.ideal_range,
+                'user_value': fb_point.user_value,
+                'remedy_tips': fb_point.remedy_tips,
+                'critical_landmarks': fb_point.critical_landmarks
+            })
+        
         pdf_results = {
             'analysis_report': None,
             'output_video_path': output_video_path,
             'feedback_stills': frame_for_still_capture,
             'flaw_stills': flaw_stills_captured,
             'detailed_flaws': detailed_flaws,
-            'shot_phases': shot_phases,
-            'feedback_points': feedback_points
+            'shot_phases': shot_phases_data,  # Use serialized data
+            'feedback_points': feedback_points_data  # Use serialized data
         }
         
         logging.info(f"Starting PDF generation for job {job.job_id}")
         logging.info(f"PDF data contains {len(detailed_flaws)} flaws, {len(shot_phases)} phases, {len(feedback_points)} feedback points")
         
+        # Debug: Log the exact data structure being passed
+        logging.info(f"PDF generation data structure: {type(pdf_results)}")
+        logging.info(f"Detailed flaws sample: {detailed_flaws[:1] if detailed_flaws else 'None'}")
+        logging.info(f"Shot phases sample: {shot_phases[:1] if shot_phases else 'None'}")
+        logging.info(f"Feedback points sample: {feedback_points[:1] if feedback_points else 'None'}")
+        
         # Only generate PDF if we have meaningful analysis data
         if detailed_flaws or feedback_points or shot_phases:
-            improvement_plan_pdf = generate_improvement_plan_pdf(pdf_results, job.job_id)
+            # Use writable directory for PDF generation
+            improvement_plan_pdf = generate_improvement_plan_pdf(pdf_results, job.job_id, "/tmp/results")
             
             if improvement_plan_pdf:
                 logging.info(f"Successfully generated PDF: {improvement_plan_pdf}")
@@ -2614,8 +2991,9 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
     # Move final video to results folder with correct naming
     if output_video_path and os.path.exists(output_video_path):
         try:
-            os.makedirs('results', exist_ok=True)
-            final_video_path = os.path.join('results', f"{job.job_id}_analyzed.mp4")
+            # Use /tmp directory for App Engine compatibility
+            os.makedirs('/tmp/results', exist_ok=True)
+            final_video_path = os.path.join('/tmp/results', f"{job.job_id}_analyzed.mp4")
             shutil.move(output_video_path, final_video_path)
             output_video_path = final_video_path
             logging.info(f"Moved final video to: {final_video_path}")

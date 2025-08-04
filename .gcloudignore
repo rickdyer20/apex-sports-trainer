@@ -1,0 +1,134 @@
+# Google Cloud ignore file for App Engine deployment
+# Ignore common development and temporary files
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Log files
+*.log
+logs/
+temp_*.txt
+basketball_analysis_production_*.log
+
+# Debug and test files
+debug_*.py
+test_*.py
+*_test.py
+debug_*.jpg
+debug_*.png
+debug_*.json
+*_debug.json
+
+# Documentation and markdown files
+*.md
+BACKUP_STATUS.md
+BUSINESS_PLAN.md
+COMMERCIAL_DEPLOYMENT_PLAN.md
+COMPLETE_SYSTEM_SUMMARY.md
+DEPLOYMENT_STATUS.md
+ENHANCEMENT_SUMMARY.md
+FLAW_DETECTION_IMPROVEMENTS.md
+FLAW_DETECTION_SYSTEM_REPORT.md
+GO_LIVE_GUIDE.md
+GUIDE_HAND_ENHANCEMENT_SUMMARY.md
+IMPLEMENTATION_ROADMAP.md
+OPTIMAL_VIDEO_CAPTURE_GUIDE.md
+ORIENTATION_CORRECTION_GUIDE.md
+ORIENTATION_SOLUTION_SUMMARY.md
+PRODUCTION_DEPLOYMENT.md
+PRODUCTION_READINESS.md
+
+# Docker and container files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Deployment and infrastructure files
+deploy_*.ps1
+deploy_*.sh
+deploy_*.py
+deploy_commands.txt
+deployment_checklist.md
+Procfile*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Git files
+.git/
+.gitignore
+
+# Temporary and cache directories
+temp/
+cache/
+tmp/
+.pytest_cache/
+.coverage
+
+# Demo and test media files
+demo_*.png
+demo_*.jpg
+demo_*.mp4
+basketball_shot_demo.mp4
+
+# Database files (if any)
+*.db
+*.sqlite
+*.sqlite3
+
+# Development scripts
+analyze_*.py
+clear_cache.py
+cleanup_system.py
+comprehensive_*.py
+diagnose_*.py
+memory_optimization.py
+optimize_processing.py
+final_verification.py
+full_*.py
+
+# Configuration that shouldn't be deployed
+config_local.py
+.env.local
+.env.development
+
+# Node modules (if any frontend)
+node_modules/
+
+# Terraform and Kubernetes
+terraform/
+k8s/
+*.tfstate
+*.tfplan
+
+# GitHub workflow files
+.github/

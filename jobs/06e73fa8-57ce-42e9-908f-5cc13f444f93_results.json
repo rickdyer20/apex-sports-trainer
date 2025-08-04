@@ -1,0 +1,103 @@
+{
+  "video_path": "results\\06e73fa8-57ce-42e9-908f-5cc13f444f93_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-07-31T12:11:39.537951",
+  "flaw_stills": [
+    {
+      "file_path": "results\\06e73fa8-57ce-42e9-908f-5cc13f444f93_flaw_guide_hand_thumb_flick_frame_19.png",
+      "filename": "06e73fa8-57ce-42e9-908f-5cc13f444f93_flaw_guide_hand_thumb_flick_frame_19.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_thumb_flick",
+        "frame_number": 19,
+        "phase": "Follow-Through",
+        "severity": 41.81421380569448,
+        "description": "Guide hand thumb interfering with ball trajectory during follow-through",
+        "plain_language": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+        "coaching_tip": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+        "drill_suggestion": "One-handed shooting: Practice with only your shooting hand to eliminate guide hand interference.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 19
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "guide_hand_thumb_flick",
+      "frame_number": 19,
+      "phase": "Follow-Through",
+      "severity": 41.81421380569448,
+      "description": "Guide hand thumb interfering with ball trajectory during follow-through",
+      "plain_language": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+      "coaching_tip": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+      "drill_suggestion": "One-handed shooting: Practice with only your shooting hand to eliminate guide hand interference.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "follow_through_timing",
+      "frame_number": 5,
+      "phase": "Follow-Through",
+      "severity": 10.596840358826444,
+      "description": "Follow-through timing could be improved for better consistency",
+      "plain_language": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "coaching_tip": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "drill_suggestion": "Follow-through freeze: Hold your follow-through position for 3 seconds after each shot.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 42,
+      "severity": 100,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 0.5/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 0.5,
+        "acceleration_spikes": 11,
+        "rhythm_breaks": 5
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 27,
+      "key_moment_frame": 27
+    },
+    {
+      "name": "Release",
+      "start_frame": 3,
+      "end_frame": 15,
+      "key_moment_frame": 7
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 5,
+      "end_frame": 19,
+      "key_moment_frame": 7
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 19,
+      "discrepancy": "Guide Hand Thumb Flick: Guide hand thumb interfering with ball trajectory during follow-through",
+      "ideal_range": "Severity: 41.8/100",
+      "user_value": "Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.",
+      "remedy_tips": "Keep your guide hand passive. No thumb movement - it should be completely still during release.",
+      "critical_landmarks": [],
+      "severity": 41.81421380569448
+    },
+    {
+      "frame_number": 5,
+      "discrepancy": "Follow Through Timing: Follow-through timing could be improved for better consistency",
+      "ideal_range": "Severity: 10.6/100",
+      "user_value": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "remedy_tips": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "critical_landmarks": [],
+      "severity": 10.596840358826444
+    }
+  ],
+  "improvement_plan_pdf": null
+}

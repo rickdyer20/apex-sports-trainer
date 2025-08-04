@@ -1,0 +1,97 @@
+# Cloud Run service configuration
+# Basketball Analysis Service - Serverless deployment
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: basketball-analysis
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        # Resource allocation
+        run.googleapis.com/cpu: "2"
+        run.googleapis.com/memory: "4Gi"
+        run.googleapis.com/execution-environment: gen2
+        
+        # Scaling configuration
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "100"
+        
+        # Timeout for long video processing
+        run.googleapis.com/timeout: "300s"
+        
+        # VPC connector (if needed for database access)
+        # run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/REGION/connectors/CONNECTOR_NAME
+        
+    spec:
+      containerConcurrency: 10
+      timeoutSeconds: 300
+      containers:
+      - image: gcr.io/PROJECT_ID/basketball-analysis:latest
+        ports:
+        - name: http1
+          containerPort: 8080
+        env:
+        - name: FLASK_ENV
+          value: production
+        - name: FLASK_DEBUG
+          value: "false"
+        - name: TF_CPP_MIN_LOG_LEVEL
+          value: "2"
+        - name: MEDIAPIPE_DISABLE_GPU
+          value: "1"
+        - name: OPENCV_DISABLE_CUDA_CACHE
+          value: "1"
+        - name: MAX_PROCESSING_TIME
+          value: "300"
+        - name: MAX_CONCURRENT_JOBS
+          value: "5"
+        - name: FRAME_SKIP
+          value: "2"
+        - name: GARBAGE_COLLECTION_INTERVAL
+          value: "10"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: PORT
+          value: "8080"
+        
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        
+        # Health check configuration
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Volume mounts for temporary files
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+      
+  traffic:
+  - percent: 100
+    latestRevision: true

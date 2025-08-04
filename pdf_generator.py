@@ -115,54 +115,75 @@ class BasketballAnalysisPDFGenerator:
         if not output_path:
             output_path = f"60_Day_Shot_Improvement_Plan_{job_id}.pdf"
             
-        # Create PDF document
-        doc = SimpleDocTemplate(
-            output_path,
-            pagesize=letter,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=18
-        )
+        print(f"Starting PDF generation for {job_id}, output: {output_path}")
         
-        # Build document content
-        story = []
-        
-        # Title page
-        story.extend(self._create_title_page(analysis_results, job_id))
-        story.append(PageBreak())
-        
-        # Executive summary
-        story.extend(self._create_executive_summary(analysis_results))
-        story.append(PageBreak())
-        
-        # Detailed flaw analysis
-        story.extend(self._create_flaw_analysis_section(analysis_results))
-        story.append(PageBreak())
-        
-        # 60-day improvement plan
-        story.extend(self._create_60_day_plan(analysis_results))
-        story.append(PageBreak())
-        
-        # Weekly training schedules
-        story.extend(self._create_weekly_schedules(analysis_results))
-        story.append(PageBreak())
-        
-        # Drill library with detailed instructions
-        story.extend(self._create_drill_library(analysis_results))
-        story.append(PageBreak())
-        
-        # Progress tracking and benchmarks
-        story.extend(self._create_progress_tracking(analysis_results))
-        story.append(PageBreak())
-        
-        # Resources and citations
-        story.extend(self._create_resources_section())
-        
-        # Build PDF
-        doc.build(story)
-        
-        return output_path
+        try:
+            # Create PDF document
+            doc = SimpleDocTemplate(
+                output_path,
+                pagesize=letter,
+                rightMargin=72,
+                leftMargin=72,
+                topMargin=72,
+                bottomMargin=18
+            )
+            
+            print("Created PDF document structure")
+            
+            # Build document content
+            story = []
+            
+            # Title page
+            print("Creating title page...")
+            story.extend(self._create_title_page(analysis_results, job_id))
+            story.append(PageBreak())
+            
+            # Executive summary
+            print("Creating executive summary...")
+            story.extend(self._create_executive_summary(analysis_results))
+            story.append(PageBreak())
+            
+            # Detailed flaw analysis
+            print("Creating flaw analysis section...")
+            story.extend(self._create_flaw_analysis_section(analysis_results))
+            story.append(PageBreak())
+            
+            # 60-day improvement plan
+            print("Creating 60-day plan...")
+            story.extend(self._create_60_day_plan(analysis_results))
+            story.append(PageBreak())
+            
+            # Weekly training schedules
+            print("Creating weekly schedules...")
+            story.extend(self._create_weekly_schedules(analysis_results))
+            story.append(PageBreak())
+            
+            # Drill library with detailed instructions
+            print("Creating drill library...")
+            story.extend(self._create_drill_library(analysis_results))
+            story.append(PageBreak())
+            
+            # Progress tracking and benchmarks
+            print("Creating progress tracking...")
+            story.extend(self._create_progress_tracking(analysis_results))
+            story.append(PageBreak())
+            
+            # Resources and citations
+            print("Creating resources section...")
+            story.extend(self._create_resources_section())
+            
+            # Build PDF
+            print(f"Building PDF with {len(story)} story elements...")
+            doc.build(story)
+            
+            print(f"PDF generation completed: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            print(f"Error during PDF generation: {e}")
+            import traceback
+            print(f"PDF generation traceback: {traceback.format_exc()}")
+            return None
 
     def _create_title_page(self, analysis_results, job_id):
         """Create professional title page"""
@@ -1445,11 +1466,11 @@ class BasketballAnalysisPDFGenerator:
         return drill_library.get(flaw_type, [])
 
 
-def generate_improvement_plan_pdf(analysis_results, job_id, output_dir="results"):
+def generate_improvement_plan_pdf(analysis_results, job_id, output_dir="/tmp/results"):
     """Generate comprehensive PDF improvement plan"""
     
     try:
-        # Ensure output directory exists
+        # Ensure output directory exists (use writable location for App Engine)
         os.makedirs(output_dir, exist_ok=True)
         
         # Validate input data
@@ -1473,14 +1494,8 @@ def generate_improvement_plan_pdf(analysis_results, job_id, output_dir="results"
         generator = BasketballAnalysisPDFGenerator()
         output_path = os.path.join(output_dir, f"60_Day_Improvement_Plan_{job_id}.pdf")
         
-        # Additional validation: check if path is writable
-        try:
-            with open(output_path, 'w') as test_file:
-                pass
-            os.remove(output_path)
-        except Exception as e:
-            print(f"Error: Cannot write to output path {output_path}: {e}")
-            return None
+        # Skip write test on App Engine (causes issues with read-only filesystem detection)
+        # The actual PDF generation will handle any write errors
         
         pdf_path = generator.generate_improvement_plan(analysis_results, job_id, output_path)
         

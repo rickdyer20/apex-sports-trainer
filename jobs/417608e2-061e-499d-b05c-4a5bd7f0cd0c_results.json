@@ -1,0 +1,66 @@
+{
+  "video_path": "results\\417608e2-061e-499d-b05c-4a5bd7f0cd0c_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-07-31T12:00:17.097269",
+  "flaw_stills": [],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "follow_through_timing",
+      "frame_number": 5,
+      "phase": "Follow-Through",
+      "severity": 10.596840358826444,
+      "description": "Follow-through timing could be improved for better consistency",
+      "plain_language": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "coaching_tip": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "drill_suggestion": "Follow-through freeze: Hold your follow-through position for 3 seconds after each shot.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 42,
+      "severity": 100,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 0.5/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 0.5,
+        "acceleration_spikes": 11,
+        "rhythm_breaks": 5
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 27,
+      "key_moment_frame": 27
+    },
+    {
+      "name": "Release",
+      "start_frame": 3,
+      "end_frame": 15,
+      "key_moment_frame": 7
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 5,
+      "end_frame": 19,
+      "key_moment_frame": 7
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 5,
+      "discrepancy": "Follow Through Timing: Follow-through timing could be improved for better consistency",
+      "ideal_range": "Severity: 10.6/100",
+      "user_value": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "remedy_tips": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "critical_landmarks": [],
+      "severity": 10.596840358826444
+    }
+  ],
+  "improvement_plan_pdf": null
+}

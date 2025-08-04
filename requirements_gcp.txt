@@ -1,9 +1,10 @@
-# Basketball Analysis Service - GCP-Compatible Dependencies
+# Google Cloud Platform Requirements
+# Basketball Analysis Service - Optimized for App Engine
+
 # Core Web Framework
 Flask==2.3.3
 gunicorn==21.2.0
 Werkzeug==2.3.7
-Flask-CORS==4.0.0
 
 # Computer Vision & AI (GCP-optimized versions)
 opencv-python-headless==4.8.1.78
@@ -12,9 +13,6 @@ numpy==1.24.3
 
 # PDF Generation
 reportlab==4.0.4
-
-# Image processing
-Pillow==10.0.1
 
 # System Monitoring (GCP compatible)
 psutil==5.9.6
@@ -29,10 +27,16 @@ click==8.1.7
 # Environment management
 python-dotenv==1.0.0
 
+# Image processing
+Pillow==10.0.1
+
 # HTTP requests
 requests==2.31.0
 
-# Google Cloud specific dependencies (optional - uncomment if using GCS)
-# google-cloud-logging==3.8.0
-# google-cloud-storage==2.10.0
-# google-cloud-monitoring==2.16.0
+# CORS support
+Flask-CORS==4.0.0
+
+# Google Cloud specific dependencies
+google-cloud-logging==3.8.0
+google-cloud-storage==2.10.0
+google-cloud-monitoring==2.16.0

@@ -1,21 +1,29 @@
+# Flask and core imports
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response
+from werkzeug.utils import secure_filename
+from datetime import datetime
+
+# System imports
 import os
 import uuid
 import shutil
-from werkzeug.utils import secure_filename
-from datetime import datetime
 import json
 import threading
 import time
 import logging
+import traceback
+import signal
+import glob
+import zipfile
+import io
+import psutil
 
-# Configure production logging
+# Configure production logging for App Engine (cloud logging only)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('basketball_analysis.log'),
-        logging.StreamHandler()
+        logging.StreamHandler()  # Only use stream handler for App Engine
     ]
 )
 
@@ -29,16 +37,21 @@ from basketball_analysis_service import (
 app = Flask(__name__)
 app.secret_key = 'basketball_analysis_secret_key_2025'
 
-# Configuration
-UPLOAD_FOLDER = 'uploads'
-RESULTS_FOLDER = 'results'
+# Configuration - Use /tmp for App Engine compatibility
+UPLOAD_FOLDER = '/tmp/uploads'
+RESULTS_FOLDER = '/tmp/results'
+JOBS_FOLDER = '/tmp/jobs'
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv'}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
-# Create directories if they don't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULTS_FOLDER, exist_ok=True)
-os.makedirs('jobs', exist_ok=True)  # Directory for job persistence
+# Create directories if they don't exist (only in /tmp which is writable)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(RESULTS_FOLDER, exist_ok=True)
+    os.makedirs(JOBS_FOLDER, exist_ok=True)  # Directory for job persistence
+except Exception as e:
+    logging.warning(f"Could not create directories: {e}")
+    # Fallback - directories will be created as needed
 
 # In-memory storage for demo (in production, use a database)
 analysis_jobs = {}
@@ -48,157 +61,90 @@ job_results = {}
 def save_job_to_file(job_id, job_data):
     """Save job data to file for persistence across sessions"""
     try:
-        job_file = os.path.join('jobs', f"{job_id}.json")
+        job_file = os.path.join(JOBS_FOLDER, f"{job_id}.json")
         serializable_data = job_data.copy()
         # Convert datetime objects to ISO strings
-        if 'created_at' in serializable_data:
-            serializable_data['created_at'] = serializable_data['created_at'].isoformat()
-        if 'updated_at' in serializable_data:
-            serializable_data['updated_at'] = serializable_data['updated_at'].isoformat()
-        if 'processed_at' in serializable_data:
-            serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
+        for key in ['created_at', 'updated_at', 'processed_at']:
+            if key in serializable_data and hasattr(serializable_data[key], 'isoformat'):
+                serializable_data[key] = serializable_data[key].isoformat()
         
         with open(job_file, 'w') as f:
             json.dump(serializable_data, f, indent=2)
-        print(f"DEBUG: Saved job {job_id} to file")
+        logging.debug(f"Saved job {job_id} to file")
     except Exception as e:
-        print(f"DEBUG: Failed to save job {job_id}: {e}")
+        logging.error(f"Failed to save job {job_id}: {e}")
 
 def load_job_from_file(job_id):
     """Load job data from file"""
     try:
-        job_file = os.path.join('jobs', f"{job_id}.json")
+        job_file = os.path.join(JOBS_FOLDER, f"{job_id}.json")
         if os.path.exists(job_file):
             with open(job_file, 'r') as f:
                 job_data = json.load(f)
             
             # Convert ISO strings back to datetime objects
-            if 'created_at' in job_data:
-                job_data['created_at'] = datetime.fromisoformat(job_data['created_at'])
-            if 'updated_at' in job_data:
-                job_data['updated_at'] = datetime.fromisoformat(job_data['updated_at'])
-            if 'processed_at' in job_data:
-                job_data['processed_at'] = datetime.fromisoformat(job_data['processed_at'])
+            for key in ['created_at', 'updated_at', 'processed_at']:
+                if key in job_data:
+                    job_data[key] = datetime.fromisoformat(job_data[key])
             
-            print(f"DEBUG: Loaded job {job_id} from file")
+            logging.debug(f"Loaded job {job_id} from file")
             return job_data
     except Exception as e:
-        print(f"DEBUG: Failed to load job {job_id}: {e}")
+        logging.error(f"Failed to load job {job_id}: {e}")
     return None
 
 def save_results_to_file(job_id, results_data):
     """Save results data to file for persistence"""
     try:
-        print(f"DEBUG: save_results_to_file called for job {job_id}")
-        
         # Ensure jobs directory exists
-        jobs_dir = 'jobs'
-        if not os.path.exists(jobs_dir):
-            os.makedirs(jobs_dir)
-            print(f"DEBUG: Created jobs directory: {jobs_dir}")
-        
-        results_file = os.path.join(jobs_dir, f"{job_id}_results.json")
-        print(f"DEBUG: Attempting to save results to: {results_file}")
-        
-        # Check if we can write to the directory
-        try:
-            test_file = os.path.join(jobs_dir, f"test_{job_id}.tmp")
-            with open(test_file, 'w') as f:
-                f.write("test")
-            os.remove(test_file)
-            print(f"DEBUG: Directory write test successful for {jobs_dir}")
-        except Exception as write_test_error:
-            print(f"DEBUG: Directory write test failed: {write_test_error}")
-            raise write_test_error
+        os.makedirs(JOBS_FOLDER, exist_ok=True)
+        results_file = os.path.join(JOBS_FOLDER, f"{job_id}_results.json")
         
         serializable_data = results_data.copy()
-        print(f"DEBUG: Original data keys: {list(serializable_data.keys())}")
         
         # Convert datetime objects to ISO strings
-        if 'processed_at' in serializable_data:
-            if hasattr(serializable_data['processed_at'], 'isoformat'):
-                serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
-            print(f"DEBUG: Converted processed_at to string")
+        if 'processed_at' in serializable_data and hasattr(serializable_data['processed_at'], 'isoformat'):
+            serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
         
         # Convert complex objects to serializable format
         def make_serializable(obj, depth=0, max_depth=5):
-            try:
-                # Prevent infinite recursion
-                if depth > max_depth:
+            if depth > max_depth or obj is None or isinstance(obj, (str, int, float, bool)):
+                return str(obj) if depth > max_depth else obj
+            elif isinstance(obj, list):
+                return [make_serializable(item, depth + 1, max_depth) for item in obj]
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
+            elif hasattr(obj, '__dict__'):
+                # Skip MediaPipe and OpenCV objects
+                if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy']):
                     return str(obj)
-                
-                # Handle basic types first
-                if obj is None or isinstance(obj, (str, int, float, bool)):
-                    return obj
-                elif isinstance(obj, list):
-                    return [make_serializable(item, depth + 1, max_depth) for item in obj]
-                elif isinstance(obj, dict):
-                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
-                elif hasattr(obj, '__dict__'):
-                    # Skip MediaPipe and OpenCV objects - just convert to string representation
-                    if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy.ndarray']):
-                        return str(obj)
-                    # Convert other objects with attributes to dictionaries
-                    try:
-                        return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
-                    except:
-                        return str(obj)
-                else:
+                try:
+                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
+                except:
                     return str(obj)
-            except Exception as make_serializable_error:
-                print(f"DEBUG: make_serializable error for {type(obj)}: {make_serializable_error}")
+            else:
                 return str(obj)
         
         # Apply serialization to complex fields
         for key in ['shot_phases', 'detailed_flaws', 'feedback_points']:
             if key in serializable_data:
-                print(f"DEBUG: Serializing {key} with {len(serializable_data[key]) if isinstance(serializable_data[key], list) else 'unknown'} items")
                 serializable_data[key] = make_serializable(serializable_data[key])
-                print(f"DEBUG: Serialized {key} successfully")
         
-        print(f"DEBUG: About to write JSON to file")
         with open(results_file, 'w') as f:
             json.dump(serializable_data, f, indent=2)
         
-        print(f"DEBUG: Successfully saved results {job_id} to file")
-        file_size = os.path.getsize(results_file) if os.path.exists(results_file) else 0
-        print(f"DEBUG: File size: {file_size} bytes")
-        
-        # Verify the file was written correctly
-        if os.path.exists(results_file):
-            try:
-                with open(results_file, 'r') as f:
-                    test_load = json.load(f)
-                print(f"DEBUG: Results file verification successful")
-                return True
-            except Exception as e:
-                print(f"DEBUG: Results file verification failed: {e}")
-                return False
-        else:
-            print(f"DEBUG: Results file does not exist after write attempt")
-            return False
+        logging.debug(f"Successfully saved results {job_id} to file")
+        return True
         
     except Exception as e:
-        print(f"DEBUG: Failed to save results {job_id}: {e}")
-        import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        logging.error(f"Failed to save results {job_id}: {e}")
         return False
 
 def load_results_from_file(job_id):
     """Load results data from file"""
     try:
-        results_file = os.path.join('jobs', f"{job_id}_results.json")
-        print(f"DEBUG: Attempting to load results from: {results_file}")
-        print(f"DEBUG: Results file exists: {os.path.exists(results_file)}")
-        
+        results_file = os.path.join(JOBS_FOLDER, f"{job_id}_results.json")
         if os.path.exists(results_file):
-            print(f"DEBUG: File size: {os.path.getsize(results_file)} bytes")
-            
-            with open(results_file, 'r') as f:
-                content = f.read()
-                print(f"DEBUG: File content length: {len(content)}")
-                
-            # Reset file pointer and load JSON
             with open(results_file, 'r') as f:
                 results_data = json.load(f)
             
@@ -206,29 +152,20 @@ def load_results_from_file(job_id):
             if 'processed_at' in results_data:
                 results_data['processed_at'] = datetime.fromisoformat(results_data['processed_at'])
             
-            print(f"DEBUG: Successfully loaded results {job_id} from file")
-            print(f"DEBUG: Results keys: {list(results_data.keys())}")
+            logging.debug(f"Successfully loaded results {job_id} from file")
             return results_data
-        else:
-            print(f"DEBUG: Results file does not exist: {results_file}")
-            # List files in jobs directory to see what's there
-            jobs_dir = 'jobs'
-            if os.path.exists(jobs_dir):
-                files_in_jobs = os.listdir(jobs_dir)
-                print(f"DEBUG: Files in jobs directory: {files_in_jobs}")
-            else:
-                print(f"DEBUG: Jobs directory does not exist: {jobs_dir}")
                 
     except Exception as e:
-        print(f"DEBUG: Failed to load results {job_id}: {e}")
-        import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        logging.error(f"Failed to load results {job_id}: {e}")
     return None
 
 def load_all_jobs():
     """Load all jobs from files on startup"""
     try:
-        job_files = [f for f in os.listdir('jobs') if f.endswith('.json') and not f.endswith('_results.json')]
+        if not os.path.exists(JOBS_FOLDER):
+            return
+        
+        job_files = [f for f in os.listdir(JOBS_FOLDER) if f.endswith('.json') and not f.endswith('_results.json')]
         for job_file in job_files:
             job_id = job_file.replace('.json', '')
             job_data = load_job_from_file(job_id)
@@ -240,9 +177,9 @@ def load_all_jobs():
                 if results_data:
                     job_results[job_id] = results_data
         
-        print(f"DEBUG: Loaded {len(analysis_jobs)} jobs from files")
+        logging.info(f"Loaded {len(analysis_jobs)} jobs from files")
     except Exception as e:
-        print(f"DEBUG: Failed to load jobs from files: {e}")
+        logging.error(f"Failed to load jobs from files: {e}")
 
 # Load existing jobs on startup
 load_all_jobs()
@@ -250,13 +187,8 @@ load_all_jobs()
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-
 def process_video_async(job_id, video_path, ideal_data):
     """Process video analysis in background thread with production optimizations"""
-    import signal
-    import threading
-    import time
     
     start_time = time.time()
     logging.info(f"Starting analysis for job {job_id}")
@@ -281,15 +213,7 @@ def process_video_async(job_id, video_path, ideal_data):
         )
         
         # Process the video with timeout protection
-        print(f"DEBUG: Starting analysis for job {job_id} with {timeout_seconds}s timeout")
-        
-        # Use threading timer as fallback timeout mechanism for deployment
-        def analysis_with_timeout():
-            try:
-                return process_video_for_analysis(job, ideal_data)
-            except Exception as e:
-                print(f"DEBUG: Analysis exception: {e}")
-                return {'error': str(e)}
+        logging.debug(f"Starting analysis for job {job_id} with {timeout_seconds}s timeout")
         
         # Run analysis in separate thread with monitoring
         analysis_result = [None]
@@ -307,30 +231,25 @@ def process_video_async(job_id, video_path, ideal_data):
         analysis_thread.join(timeout=timeout_seconds)
         
         if analysis_thread.is_alive():
-            print(f"DEBUG: Analysis timeout for job {job_id}")
+            logging.warning(f"Analysis timeout for job {job_id}")
             analysis_results = {'error': 'Analysis timeout - video processing took too long. Please try with a shorter video.'}
         elif analysis_exception[0]:
-            print(f"DEBUG: Analysis exception for job {job_id}: {analysis_exception[0]}")
+            logging.error(f"Analysis exception for job {job_id}: {analysis_exception[0]}")
             analysis_results = {'error': str(analysis_exception[0])}
         else:
             analysis_results = analysis_result[0]
         
-        print(f"DEBUG: Analysis completed for job {job_id}. Results: {type(analysis_results)}")
-        
-        if analysis_results:
-            print(f"DEBUG: Analysis results keys: {analysis_results.keys()}")
-        else:
-            print(f"DEBUG: Analysis results is None or empty")
+        logging.debug(f"Analysis completed for job {job_id}. Results type: {type(analysis_results)}")
         
         # Update status to show post-processing phase
         analysis_jobs[job_id]['status'] = 'FINALIZING'
         analysis_jobs[job_id]['updated_at'] = datetime.now()
         save_job_to_file(job_id, analysis_jobs[job_id])
-        logging.info(f"Job {job_id} entering finalization phase - processing and organizing output files")
+        logging.info(f"Job {job_id} entering finalization phase")
         
         # Check if analysis encountered errors
         if analysis_results and 'error' in analysis_results:
-            print(f"DEBUG: Analysis had errors: {analysis_results['error']}")
+            logging.error(f"Analysis had errors: {analysis_results['error']}")
             # Store error results
             job_results[job_id] = {
                 'video_path': None,
@@ -355,8 +274,7 @@ def process_video_async(job_id, video_path, ideal_data):
         result_video_path = None
         if analysis_results and 'output_video_path' in analysis_results:
             result_video_path = analysis_results['output_video_path']
-            print(f"DEBUG: Analysis returned video path: {result_video_path}")
-            print(f"DEBUG: Video path exists: {result_video_path and os.path.exists(result_video_path)}")
+            logging.debug(f"Analysis returned video path: {result_video_path}")
         
         if result_video_path and os.path.exists(result_video_path):
             
@@ -422,7 +340,7 @@ def process_video_async(job_id, video_path, ideal_data):
         else:
             # No output video was generated, but analysis completed 
             # This can happen when MediaPipe fails to detect poses in most frames
-            print(f"DEBUG: No output video generated for job {job_id}, storing results without video")
+            logging.warning(f"No output video generated for job {job_id}, storing results without video")
             job_results[job_id] = {
                 'video_path': None,
                 'analysis_complete': True,
@@ -437,38 +355,31 @@ def process_video_async(job_id, video_path, ideal_data):
             }
         
         # Save results to file
-        print(f"DEBUG: Saving results for job {job_id}")
-        print(f"DEBUG: Results keys: {list(job_results[job_id].keys())}")
-        print(f"DEBUG: Analysis complete: {job_results[job_id].get('analysis_complete', False)}")
-        print(f"DEBUG: Video path exists: {job_results[job_id].get('video_path') and os.path.exists(job_results[job_id]['video_path'])}")
-        
         try:
             save_results_to_file(job_id, job_results[job_id])
-            print(f"DEBUG: Results saved successfully for job {job_id}")
+            logging.debug(f"Results saved successfully for job {job_id}")
         except Exception as e:
-            print(f"ERROR: Failed to save results for job {job_id}: {e}")
-            import traceback
-            print(f"ERROR: Traceback: {traceback.format_exc()}")
+            logging.error(f"Failed to save results for job {job_id}: {e}")
             # Try to save a minimal results file as fallback
             try:
                 minimal_results = {
                     'video_path': job_results[job_id].get('video_path'),
                     'analysis_complete': job_results[job_id].get('analysis_complete', True),
                     'processed_at': datetime.now().isoformat(),
-                    'flaw_stills': job_results[job_id].get('flaw_stills', []),
-                    'feedback_stills': job_results[job_id].get('feedback_stills', []),
+                    'flaw_stills': [],
+                    'feedback_stills': [],
                     'detailed_flaws': [],
                     'shot_phases': [],
                     'feedback_points': [],
                     'improvement_plan_pdf': job_results[job_id].get('improvement_plan_pdf'),
                     'error': 'Results processing failed but analysis completed'
                 }
-                results_file = os.path.join('jobs', f"{job_id}_results.json")
+                results_file = os.path.join(JOBS_FOLDER, f"{job_id}_results.json")
                 with open(results_file, 'w') as f:
                     json.dump(minimal_results, f, indent=2)
-                print(f"DEBUG: Saved minimal results file for job {job_id}")
+                logging.info(f"Saved minimal results file for job {job_id}")
             except Exception as fallback_error:
-                print(f"ERROR: Failed to save even minimal results for job {job_id}: {fallback_error}")
+                logging.error(f"Failed to save even minimal results for job {job_id}: {fallback_error}")
         
         # Log performance metrics
         end_time = time.time()
@@ -494,7 +405,6 @@ def process_video_async(job_id, video_path, ideal_data):
 @app.route('/health')
 def health_check():
     """Health check endpoint for Render deployment"""
-    import psutil
     try:
         # Basic health metrics for monitoring
         memory_info = psutil.virtual_memory()
@@ -522,26 +432,16 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_video():
     """Handle video upload and start analysis"""
-    print("Upload route called")
-    print("request.files:", request.files)
-    print("request.form:", request.form)
-    
     if 'video' not in request.files:
-        print("No 'video' key in request.files")
         flash('No video file selected')
         return redirect(url_for('index'))
     
     file = request.files['video']
-    print("File object:", file)
-    print("File filename:", file.filename)
-    
     if file.filename == '':
-        print("Empty filename")
         flash('No video file selected')
         return redirect(url_for('index'))
     
     if not allowed_file(file.filename):
-        print("File type not allowed:", file.filename)
         flash('Invalid file type. Please upload MP4, AVI, MOV, or MKV files.')
         return redirect(url_for('index'))
     
@@ -554,13 +454,29 @@ def upload_video():
         flash('File too large. Maximum size is 100MB.')
         return redirect(url_for('index'))
     
-    # Save the uploaded file
+    # Save the uploaded file to memory (App Engine compatible)
     job_id = str(uuid.uuid4())
     filename = secure_filename(file.filename)
     file_extension = filename.rsplit('.', 1)[1].lower()
     saved_filename = f"{job_id}.{file_extension}"
-    filepath = os.path.join(UPLOAD_FOLDER, saved_filename)
-    file.save(filepath)
+    
+    # Read file content into memory instead of saving to disk
+    file_content = file.read()
+    file.seek(0)  # Reset file pointer
+    
+    # For App Engine, we'll use a temporary path that doesn't actually write to disk
+    # The processing function will use the in-memory content
+    temp_filepath = f"/tmp/{saved_filename}"  # /tmp is writable in App Engine
+    
+    try:
+        # Write to /tmp directory which is writable in App Engine
+        with open(temp_filepath, 'wb') as temp_file:
+            temp_file.write(file_content)
+        filepath = temp_filepath
+    except Exception as e:
+        logging.error(f"Failed to save file to /tmp: {e}")
+        flash('Error processing uploaded file. Please try again.')
+        return redirect(url_for('index'))
     
     # Create job record
     analysis_jobs[job_id] = {
@@ -642,7 +558,6 @@ def api_status(job_id):
 @app.route('/demo')
 def demo_results():
     """Demo route to test video display with existing results"""
-    import glob
     
     # Find an existing analyzed video
     video_files = glob.glob(os.path.join(RESULTS_FOLDER, "*_analyzed.mp4"))
@@ -774,25 +689,7 @@ def view_results(job_id):
         if results_data:
             job_results[job_id] = results_data
         else:
-            # Enhanced debugging for missing results
-            print(f"DEBUG: Results not found for job {job_id}")
-            print(f"DEBUG: Analysis jobs keys: {list(analysis_jobs.keys())}")
-            print(f"DEBUG: Job results keys: {list(job_results.keys())}")
-            print(f"DEBUG: Job status: {analysis_jobs[job_id]['status']}")
-            
-            # Check if results file exists
-            results_file = os.path.join('jobs', f'{job_id}_results.json')
-            print(f"DEBUG: Results file {results_file} exists: {os.path.exists(results_file)}")
-            
-            if os.path.exists(results_file):
-                try:
-                    with open(results_file, 'r') as f:
-                        content = f.read()
-                        print(f"DEBUG: Results file content length: {len(content)}")
-                        print(f"DEBUG: Results file first 200 chars: {content[:200]}")
-                except Exception as e:
-                    print(f"DEBUG: Error reading results file: {e}")
-            
+            logging.error(f"Results not found for job {job_id}")
             flash('Results not available - analysis may have failed or results were not saved properly. Please try uploading the video again.')
             return redirect(url_for('index'))
     
@@ -816,43 +713,17 @@ def download_result(job_id):
         if results_data:
             job_results[job_id] = results_data
         else:
-            # Enhanced debugging for missing results in download
-            print(f"DEBUG DOWNLOAD: Results not found for job {job_id}")
-            print(f"DEBUG DOWNLOAD: Analysis jobs keys: {list(analysis_jobs.keys())}")
-            print(f"DEBUG DOWNLOAD: Job results keys: {list(job_results.keys())}")
-            
-            # Check if job exists
-            if job_id in analysis_jobs:
-                print(f"DEBUG DOWNLOAD: Job status: {analysis_jobs[job_id]['status']}")
-            else:
-                print(f"DEBUG DOWNLOAD: Job {job_id} not found in analysis_jobs")
-            
-            # Check if results file exists
-            results_file = os.path.join('jobs', f'{job_id}_results.json')
-            print(f"DEBUG DOWNLOAD: Results file {results_file} exists: {os.path.exists(results_file)}")
-            
-            if os.path.exists(results_file):
-                try:
-                    with open(results_file, 'r') as f:
-                        content = f.read()
-                        print(f"DEBUG DOWNLOAD: Results file content length: {len(content)}")
-                        print(f"DEBUG DOWNLOAD: Results file first 200 chars: {content[:200]}")
-                except Exception as e:
-                    print(f"DEBUG DOWNLOAD: Error reading results file: {e}")
-            
+            logging.error(f"Results not found for job {job_id}")
             flash('Results not available - analysis may have failed or results were not saved properly. Please try uploading the video again.')
             return redirect(url_for('index'))
     
     video_path = job_results[job_id]['video_path']
-    print(f"DEBUG DOWNLOAD: Video path for job {job_id}: {video_path}")
-    print(f"DEBUG DOWNLOAD: Video path exists: {video_path and os.path.exists(video_path)}")
     
     if not video_path or not os.path.exists(video_path):
-        print(f"DEBUG DOWNLOAD: Video file not found - {video_path}")
+        logging.error(f"Video file not found for job {job_id}: {video_path}")
         flash('Result video not found - analysis may have failed to generate an output video')
         return redirect(url_for('index'))
     
-    print(f"DEBUG DOWNLOAD: Sending video file: {video_path}")
     return send_file(
         video_path,
         as_attachment=True,
@@ -913,9 +784,6 @@ def download_complete_package(job_id):
     if job_id not in job_results:
         flash('Results not available')
         return redirect(url_for('index'))
-    
-    import zipfile
-    import io
     
     results = job_results[job_id]
     
@@ -1185,9 +1053,6 @@ def download_all_stills(job_id):
         flash('Results not available')
         return redirect(url_for('index'))
     
-    import zipfile
-    import io
-    
     flaw_stills = job_results[job_id].get('flaw_stills', [])
     feedback_stills = job_results[job_id].get('feedback_stills', [])
     
@@ -1244,7 +1109,7 @@ def health():
     })
 
 @app.route('/api/health')
-def health_check():
+def api_health_check():
     """Comprehensive health check endpoint"""
     health_status = {
         'status': 'healthy',
@@ -1288,12 +1153,11 @@ def health_check():
     
     # Check disk space
     try:
-        import shutil
         total, used, free = shutil.disk_usage('.')
         free_gb = free // (1024**3)
         health_status['checks']['disk_space'] = f'{free_gb}GB free'
         if free_gb < 1:  # Less than 1GB free
-            health_status['status'] = 'warning'
+            health_status['status'] = 'degraded'
     except Exception as e:
         health_status['checks']['disk_space'] = f'error: {str(e)}'
     
@@ -1318,7 +1182,7 @@ def clear_cache():
         
         # Clear file-based caches
         import glob
-        jobs_dir = 'jobs'
+        jobs_dir = JOBS_FOLDER
         if os.path.exists(jobs_dir):
             cache_files = glob.glob(os.path.join(jobs_dir, '*_results.json'))
             for cache_file in cache_files:
@@ -1376,10 +1240,17 @@ if __name__ == '__main__':
     
     # Environment-based configuration for both development and production
     debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
-    host = os.environ.get('FLASK_HOST', '127.0.0.1')
-    port = int(os.environ.get('PORT', 5000))
+    host = os.environ.get('FLASK_HOST', '0.0.0.0')  # Changed default for cloud deployment
+    port = int(os.environ.get('PORT', 8080))  # Changed default port for Google Cloud
     
-    if debug_mode:
+    # Google Cloud detection
+    is_gcloud = os.environ.get('GAE_ENV') or os.environ.get('GOOGLE_CLOUD_PROJECT')
+    
+    if is_gcloud:
+        print(f"\n☁️  Starting on Google Cloud at http://{host}:{port}")
+        print("🔧 Cloud-optimized configuration active")
+        debug_mode = False  # Force production mode on cloud
+    elif debug_mode:
         print(f"\n🌐 Starting development server at http://{host}:{port}")
         print("📝 Upload a basketball shot video to begin analysis!")
     else:

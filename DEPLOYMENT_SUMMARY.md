@@ -2,11 +2,11 @@
 
 ## ✅ What We've Accomplished
 
-Your basketball analysis service is now **95% ready** for Render deployment with these optimizations:
+Your basketball analysis service is now **DEPLOYED and WORKING** on Render with these optimizations:
 
-### 🔧 **Technical Optimizations**
+### 🔧 **Technical Optimizations (STABLE VERSION)**
 - ✅ **Procfile**: Configured for Starter Plan (2 workers, 180s timeout)
-- ✅ **Requirements.txt**: Cleaned up duplicates, added headless OpenCV
+- ✅ **Requirements.txt**: Minimal working dependencies (proven stable)
 - ✅ **Health endpoint**: `/health` for monitoring system status
 - ✅ **Memory management**: Garbage collection, frame skipping optimizations
 - ✅ **Error handling**: Comprehensive fallbacks and logging
@@ -40,12 +40,22 @@ git commit -m "Complete Render deployment optimization
 git push origin master
 ```
 
-### 2. Deploy to Render (10 minutes)
-1. Go to [render.com](https://render.com) and create account
-2. Create Web Service → Connect GitHub → Select your repository
-3. Choose **Starter Plan ($7/month)**
-4. Copy environment variables from `.env.starter`
-5. Deploy and test!
+### 2. Deploy to Render with Buildpack (RECOMMENDED - 10 minutes)
+
+**Use Buildpack deployment for best results with Starter Plan:**
+
+1. Go to [render.com](https://render.com) → **"New +"** → **"Web Service"**
+2. Connect GitHub → Select your repository (`apex-sports-trainer`)
+3. **Critical Settings:**
+   ```
+   Build Command: pip install -r requirements.txt
+   Start Command: gunicorn --workers 2 --timeout 180 --bind 0.0.0.0:$PORT wsgi:application
+   ```
+4. Choose **Starter Plan ($7/month)**
+5. Copy environment variables from `.env.starter`
+6. Deploy and test!
+
+📖 **For detailed step-by-step instructions**: See `BUILDPACK_DEPLOYMENT_GUIDE.md`
 
 ### 3. Verify Deployment
 ```bash
