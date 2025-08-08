@@ -62,7 +62,8 @@
     "follow_through_early_drop": "Hold your follow-through until the ball hits the rim. Think 'reach into the cookie jar.'",
     "rushing_shot": "Slow down your shooting motion. Count '1-2-shoot' to develop better rhythm.",
     "balance_issues": "Focus on your base. Keep your feet shoulder-width apart and land in the same spot.",
-    "guide_hand_interference": "Keep your guide hand passive. Practice one-handed shooting to isolate your shooting hand."
+    "guide_hand_interference": "Keep your guide hand passive. Practice one-handed shooting to isolate your shooting hand.",
+    "poor_shoulder_alignment": "Square your shoulders to the basket. Face the rim directly with both shoulders parallel to the baseline for better accuracy and consistency."
   },
   "flaw_descriptions": {
     "elbow_flare": {
@@ -104,6 +105,11 @@
       "technical": "Release point position variance exceeds repeatability standards",
       "plain_language": "You're releasing the ball from different positions each time. Consistency in release point is key to accurate shooting.",
       "impact": "Increases shot dispersion by 40-60% both horizontally and vertically"
+    },
+    "poor_shoulder_alignment": {
+      "technical": "Shoulder line not perpendicular to basket direction, creating angular shooting stance",
+      "plain_language": "Your shoulders aren't squared to the basket. You're shooting at an angle instead of facing the rim directly, which affects accuracy.",
+      "impact": "Reduces shooting accuracy by 15-25% and creates directional inconsistency in shot trajectory"
     }
   },
   "phase_timing": {

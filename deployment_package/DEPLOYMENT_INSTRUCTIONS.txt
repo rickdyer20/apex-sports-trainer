@@ -1,0 +1,27 @@
+
+# DEPLOYMENT INSTRUCTIONS FOR APEXSPORTS-LLC.COM
+
+## 1. Upload all files to your server
+Upload the contents of this deployment_package folder to your web server.
+
+## 2. Install dependencies on server
+```bash
+pip install flask stripe python-dotenv gunicorn
+```
+
+## 3. Start the application
+```bash
+python complete_web_app.py
+```
+
+## 4. For production (recommended)
+```bash
+gunicorn -w 4 -b 0.0.0.0:80 complete_web_app:app
+```
+
+## 5. Verify deployment
+- Visit: https://apexsports-llc.com
+- Test: https://apexsports-llc.com/pricing
+- Check: https://apexsports-llc.com/webhook
+
+## YOUR SERVICE IS LIVE AND READY FOR PAYMENTS!

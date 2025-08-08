@@ -1,0 +1,34 @@
+
+🔗 **STRIPE WEBHOOK CONFIGURATION STEPS**
+
+1. **Go to Stripe Dashboard**
+   URL: https://dashboard.stripe.com/test/webhooks
+
+2. **Create New Webhook**
+   • Click "Add endpoint"
+   • Endpoint URL: https://apexsports-llc.com/webhook/stripe
+   • Description: Basketball Analysis Service Webhooks
+
+3. **Select Events** (Click each event to add):
+   ✅ checkout.session.completed
+   ✅ customer.subscription.created  
+   ✅ customer.subscription.updated
+   ✅ customer.subscription.deleted
+   ✅ invoice.payment_succeeded
+   ✅ invoice.payment_failed
+   ✅ customer.created
+   ✅ payment_intent.succeeded
+
+4. **Get Webhook Secret**
+   • After creating webhook, click on it
+   • Click "Reveal" next to "Signing secret"  
+   • Copy the secret (starts with whsec_)
+   • Add to your .env file:
+     STRIPE_WEBHOOK_SECRET=whsec_your_actual_secret_here
+
+5. **Test Webhook**
+   • In webhook details, click "Send test webhook"
+   • Select "checkout.session.completed"
+   • Should see 200 response
+
+📍 **Your webhook endpoint**: https://apexsports-llc.com/webhook/stripe

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Analysis Pricing - ApexSports</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .pricing-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .pricing-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .pricing-card.featured {
+            border: 2px solid #ff6b6b;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .pricing-card.featured::before {
+            content: "MOST POPULAR";
+            position: absolute;
+            top: 20px;
+            right: -30px;
+            background: #ff6b6b;
+            color: white;
+            padding: 5px 40px;
+            font-size: 0.8em;
+            font-weight: bold;
+            transform: rotate(45deg);
+        }
+        
+        .tier-name {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .tier-price {
+            font-size: 3em;
+            margin-bottom: 5px;
+            color: #4ecdc4;
+        }
+        
+        .tier-duration {
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+        
+        .tier-features {
+            list-style: none;
+            margin-bottom: 30px;
+        }
+        
+        .tier-features li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .tier-features li:last-child {
+            border-bottom: none;
+        }
+        
+        .cta-button {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+        
+        .disclaimer {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 40px;
+            text-align: center;
+        }
+        
+        .disclaimer h3 {
+            margin-bottom: 15px;
+            color: #ff6b6b;
+        }
+        
+        .disclaimer-text {
+            opacity: 0.9;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .disclaimer-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .disclaimer-button {
+            padding: 10px 25px;
+            border: 2px solid #4ecdc4;
+            background: transparent;
+            color: #4ecdc4;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .disclaimer-button:hover {
+            background: #4ecdc4;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Choose Your Plan</h1>
+            <p>Professional Basketball Shot Analysis with AI Technology</p>
+        </div>
+        
+        <div class="pricing-grid">
+            <!-- Free Tier -->
+            <div class="pricing-card">
+                <h3 class="tier-name">Free</h3>
+                <div class="tier-price">$0</div>
+                <div class="tier-duration">1 analysis per year</div>
+                <ul class="tier-features">
+                    <li>Basic shot analysis</li>
+                    <li>Form feedback</li>
+                    <li>Limited insights</li>
+                    <li>Perfect for trying our service</li>
+                </ul>
+                <a href="/analyze" class="cta-button">Try Free Analysis</a>
+            </div>
+            
+            <!-- One-time Tier -->
+            <div class="pricing-card">
+                <h3 class="tier-name">One-Time</h3>
+                <div class="tier-price">$9.99</div>
+                <div class="tier-duration">5 analyses</div>
+                <ul class="tier-features">
+                    <li>Complete shot analysis</li>
+                    <li>Detailed feedback report</li>
+                    <li>Form improvement tips</li>
+                    <li>PDF analysis report</li>
+                </ul>
+                <a href="/create-checkout-session?tier=onetime" class="cta-button">Buy Now</a>
+            </div>
+            
+            <!-- Pro Tier -->
+            <div class="pricing-card featured">
+                <h3 class="tier-name">Pro</h3>
+                <div class="tier-price">$19.99</div>
+                <div class="tier-duration">per month</div>
+                <ul class="tier-features">
+                    <li>Unlimited analyses</li>
+                    <li>Advanced biomechanics</li>
+                    <li>Progress tracking</li>
+                    <li>Priority support</li>
+                    <li>Detailed video breakdowns</li>
+                </ul>
+                <a href="/create-checkout-session?tier=pro" class="cta-button">Subscribe Now</a>
+            </div>
+            
+            <!-- Enterprise Tier -->
+            <div class="pricing-card">
+                <h3 class="tier-name">Enterprise</h3>
+                <div class="tier-price">$49.99</div>
+                <div class="tier-duration">per month</div>
+                <ul class="tier-features">
+                    <li>Everything in Pro</li>
+                    <li>Team management</li>
+                    <li>Custom analysis templates</li>
+                    <li>API access</li>
+                    <li>White-label options</li>
+                </ul>
+                <a href="/create-checkout-session?tier=enterprise" class="cta-button">Get Enterprise</a>
+            </div>
+        </div>
+        
+        <div class="disclaimer">
+            <h3>Terms & Privacy</h3>
+            <div class="disclaimer-text">
+                By using our service, you agree to our terms of service and privacy policy. 
+                Our analysis is for educational purposes to help improve your basketball shooting form.
+                Results may vary and we recommend consulting with a basketball coach for personalized training.
+            </div>
+            <div class="disclaimer-buttons">
+                <a href="/terms" class="disclaimer-button">Terms of Service</a>
+                <a href="/privacy" class="disclaimer-button">Privacy Policy</a>
+                <a href="/" class="disclaimer-button">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
