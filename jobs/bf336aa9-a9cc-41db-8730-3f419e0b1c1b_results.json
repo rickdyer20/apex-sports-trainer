@@ -1,0 +1,142 @@
+{
+  "video_path": "results\\bf336aa9-a9cc-41db-8730-3f419e0b1c1b_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-08-05T13:51:38.909635",
+  "flaw_stills": [
+    {
+      "file_path": "results\\bf336aa9-a9cc-41db-8730-3f419e0b1c1b_flaw_elbow_flare_frame_31.png",
+      "filename": "bf336aa9-a9cc-41db-8730-3f419e0b1c1b_flaw_elbow_flare_frame_31.png",
+      "flaw_data": {
+        "flaw_type": "elbow_flare",
+        "frame_number": 31,
+        "phase": "Load/Dip & Release",
+        "severity": 64.86111111111111,
+        "description": "Shooting elbow positioned too far from body",
+        "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+        "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+        "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+        "camera_context": "Observed from left side view"
+      },
+      "frame_number": 31
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "elbow_flare",
+      "frame_number": 31,
+      "phase": "Load/Dip & Release",
+      "severity": 64.86111111111111,
+      "description": "Shooting elbow positioned too far from body",
+      "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+      "camera_context": "Observed from left side view"
+    },
+    {
+      "flaw_type": "shot_timing_inefficient",
+      "frame_number": 31,
+      "phase": "Release",
+      "severity": 35.833333333333336,
+      "description": "Shot timing could be more efficient for better rhythm",
+      "plain_language": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "coaching_tip": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "drill_suggestion": "Metronome shooting: Practice with consistent rhythm - catch, dip, and shoot with even timing.",
+      "camera_context": "Observed from left side view"
+    },
+    {
+      "flaw_type": "follow_through_timing",
+      "frame_number": 37,
+      "phase": "Follow-Through",
+      "severity": 16.677731722030924,
+      "description": "Follow-through timing could be improved for better consistency",
+      "plain_language": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "coaching_tip": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "drill_suggestion": "Follow-through freeze: Hold your follow-through position for 3 seconds after each shot.",
+      "camera_context": "Observed from left side view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 89,
+      "severity": 100,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 0.4/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 0.3999999999999986,
+        "acceleration_spikes": 14,
+        "rhythm_breaks": 1
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 22,
+      "key_moment_frame": 22
+    },
+    {
+      "name": "Release",
+      "start_frame": 27,
+      "end_frame": 39,
+      "key_moment_frame": 31
+    },
+    {
+      "name": "Follow-Through",
+      "start_frame": 29,
+      "end_frame": 43,
+      "key_moment_frame": 31
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 31,
+      "discrepancy": "Elbow Flare: Shooting elbow positioned too far from body",
+      "ideal_range": "Severity: 64.9/100",
+      "user_value": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "remedy_tips": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "critical_landmarks": [],
+      "severity": 64.86111111111111
+    },
+    {
+      "frame_number": 31,
+      "discrepancy": "Shot Timing Inefficient: Shot timing could be more efficient for better rhythm",
+      "ideal_range": "Severity: 35.8/100",
+      "user_value": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "remedy_tips": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "critical_landmarks": [],
+      "severity": 35.833333333333336
+    },
+    {
+      "frame_number": 37,
+      "discrepancy": "Follow Through Timing: Follow-through timing could be improved for better consistency",
+      "ideal_range": "Severity: 16.7/100",
+      "user_value": "Your follow-through timing needs work. Hold your form until the ball reaches the rim for consistent backspin.",
+      "remedy_tips": "Hold your follow-through until the ball hits the rim. Think \"reach into the cookie jar.\"",
+      "critical_landmarks": [],
+      "severity": 16.677731722030924
+    },
+    {
+      "frame_number": 31,
+      "discrepancy": "Elbow extension at release (127.8\u00b0) is outside the ideal range (160-180\u00b0).",
+      "ideal_range": {
+        "min": 160,
+        "max": 180,
+        "description": "Ideal elbow extension at ball release for optimal arc and accuracy"
+      },
+      "user_value": 127.76807032250859,
+      "remedy_tips": "Focus on fully extending your elbow towards the basket. Imagine reaching into a cookie jar on a high shelf.",
+      "critical_landmarks": [
+        12,
+        14,
+        16
+      ]
+    }
+  ],
+  "improvement_plan_pdf": {
+    "file_path": "results\\bf336aa9-a9cc-41db-8730-3f419e0b1c1b_60_Day_Improvement_Plan.pdf",
+    "filename": "bf336aa9-a9cc-41db-8730-3f419e0b1c1b_60_Day_Improvement_Plan.pdf"
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "video_path": "results\\4dd52a30-9822-43fc-9bee-ea836108ec00_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-08-07T12:07:17.137084",
+  "flaw_stills": [
+    {
+      "file_path": "results\\4dd52a30-9822-43fc-9bee-ea836108ec00_flaw_elbow_flare_frame_4.png",
+      "filename": "4dd52a30-9822-43fc-9bee-ea836108ec00_flaw_elbow_flare_frame_4.png",
+      "flaw_data": {
+        "flaw_type": "elbow_flare",
+        "frame_number": 4,
+        "phase": "Load/Dip & Release",
+        "severity": 65.0,
+        "description": "Shooting elbow positioned too far from body",
+        "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+        "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+        "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+        "camera_context": "Observed from left side view"
+      },
+      "frame_number": 4
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "elbow_flare",
+      "frame_number": 4,
+      "phase": "Load/Dip & Release",
+      "severity": 65.0,
+      "description": "Shooting elbow positioned too far from body",
+      "plain_language": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "coaching_tip": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "drill_suggestion": "Wall shooting drill: Stand arm's length from a wall and practice your shooting motion without hitting the wall.",
+      "camera_context": "Observed from left side view"
+    },
+    {
+      "flaw_type": "shot_timing_inefficient",
+      "frame_number": 1,
+      "phase": "Release",
+      "severity": 32.70860927152318,
+      "description": "Shot timing could be more efficient for better rhythm",
+      "plain_language": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "coaching_tip": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "drill_suggestion": "Metronome shooting: Practice with consistent rhythm - catch, dip, and shoot with even timing.",
+      "camera_context": "Observed from left side view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 21,
+      "severity": 86.96363338605747,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 0.0/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 0,
+        "acceleration_spikes": 15,
+        "rhythm_breaks": 6
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 9,
+      "key_moment_frame": 9
+    },
+    {
+      "name": "Release",
+      "start_frame": -3,
+      "end_frame": 9,
+      "key_moment_frame": 1
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 4,
+      "discrepancy": "Elbow Flare: Shooting elbow positioned too far from body",
+      "ideal_range": "Severity: 65.0/100",
+      "user_value": "Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.",
+      "remedy_tips": "Keep your shooting elbow directly under the ball. Imagine shooting through a narrow tunnel.",
+      "critical_landmarks": [],
+      "severity": 65.0
+    },
+    {
+      "frame_number": 1,
+      "discrepancy": "Shot Timing Inefficient: Shot timing could be more efficient for better rhythm",
+      "ideal_range": "Severity: 32.7/100",
+      "user_value": "Your shot timing could be more efficient. Work on smooth rhythm from catch to release.",
+      "remedy_tips": "Focus on smooth rhythm from catch to release. Don't rush - let the shot flow naturally.",
+      "critical_landmarks": [],
+      "severity": 32.70860927152318
+    },
+    {
+      "frame_number": 1,
+      "discrepancy": "Elbow extension at release (119.5\u00b0) is outside the ideal range (160-180\u00b0).",
+      "ideal_range": {
+        "min": 160,
+        "max": 180,
+        "description": "Ideal elbow extension at ball release for optimal arc and accuracy"
+      },
+      "user_value": 119.53384807256435,
+      "remedy_tips": "Focus on fully extending your elbow towards the basket. Imagine reaching into a cookie jar on a high shelf.",
+      "critical_landmarks": [
+        12,
+        14,
+        16
+      ]
+    }
+  ],
+  "improvement_plan_pdf": {
+    "file_path": "results\\4dd52a30-9822-43fc-9bee-ea836108ec00_60_Day_Improvement_Plan.pdf",
+    "filename": "4dd52a30-9822-43fc-9bee-ea836108ec00_60_Day_Improvement_Plan.pdf"
+  }
+}

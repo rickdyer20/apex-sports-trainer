@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Analysis Service - Manual Setup Instructions</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .step { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .command { background: #000; color: #0f0; padding: 10px; font-family: monospace; border-radius: 3px; }
+        .important { background: #ffe6e6; border-left: 4px solid #ff0000; padding: 10px; }
+        .success { background: #e6ffe6; border-left: 4px solid #00aa00; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🏀 Basketball Analysis Service - Manual Deployment</h1>
+    
+    <div class="important">
+        <strong>⚡ QUICK SETUP:</strong> If you have any file manager access in Namecheap, follow these steps.
+    </div>
+
+    <h2>📁 Step 1: Upload Files</h2>
+    <div class="step">
+        <p><strong>Find File Manager in Namecheap:</strong></p>
+        <ul>
+            <li>Look for "File Manager", "Website Files", or "FTP"</li>
+            <li>Navigate to <code>public_html</code> folder</li>
+            <li>Upload <code>apexsports_deployment.zip</code></li>
+            <li>Extract/Unzip the file</li>
+        </ul>
+    </div>
+
+    <h2>🔧 Step 2: Manual File Creation</h2>
+    <div class="step">
+        <p>If you can create files manually, create these key files:</p>
+        
+        <h3>Create: complete_web_app.py</h3>
+        <div class="command">
+# Your Basketball Analysis Service is already created!
+# Just upload the complete_web_app.py from your deployment package
+        </div>
+
+        <h3>Create: .env</h3>
+        <div class="command">
+STRIPE_PUBLISHABLE_KEY=pk_live_51RtbJzQkZf3dUgUP...
+STRIPE_SECRET_KEY=sk_live_51RtbJzQkZf3dUgUP...
+STRIPE_WEBHOOK_SECRET=whsec_FruVgwdWGPf0nKrHgE9MsHhrTgcqCdTp
+        </div>
+    </div>
+
+    <h2>🚀 Step 3: Contact Namecheap Support</h2>
+    <div class="step">
+        <p><strong>Copy this message to Namecheap support:</strong></p>
+        <div class="command">
+Subject: Python Flask Application Deployment Assistance
+
+Hello,
+
+I need help deploying a Python Flask application to apexsports-llc.com.
+
+Requirements:
+- SSH/Terminal access for Python package installation
+- Python 3.x with pip support
+- Ability to run: pip install flask stripe python-dotenv
+- Access to start Flask application on port 80
+
+Application: Basketball shot analysis service with Stripe payments
+Files: Ready to upload (Flask app, templates, dependencies)
+
+Please provide cPanel URL or file manager access.
+
+Thank you!
+        </div>
+    </div>
+
+    <h2>💰 Revenue Model Active</h2>
+    <div class="success">
+        <p>Your Basketball Analysis Service includes:</p>
+        <ul>
+            <li>🆓 <strong>Free Tier:</strong> 1 analysis per year (forces upgrades)</li>
+            <li>💵 <strong>One-time:</strong> $9.99 for 5 analyses</li>
+            <li>🔥 <strong>Pro:</strong> $19.99/month unlimited</li>
+            <li>🌟 <strong>Enterprise:</strong> $49.99/month premium features</li>
+        </ul>
+        <p><strong>Live Stripe Integration:</strong> Ready for immediate payments!</p>
+    </div>
+
+    <h2>📞 Next Steps</h2>
+    <div class="step">
+        <ol>
+            <li><strong>Contact Namecheap support</strong> using the message above</li>
+            <li><strong>Request cPanel or SSH access</strong></li>
+            <li><strong>Upload deployment files</strong> to public_html</li>
+            <li><strong>Install Python dependencies</strong></li>
+            <li><strong>Start your service</strong> and start generating revenue!</li>
+        </ol>
+    </div>
+
+    <div class="success">
+        <h3>🎉 Once Deployed:</h3>
+        <p><strong>Your Basketball Analysis Service will be live at:</strong><br>
+        <a href="https://apexsports-llc.com" target="_blank">https://apexsports-llc.com</a></p>
+        
+        <p><strong>Revenue will start immediately with:</strong></p>
+        <ul>
+            <li>Aggressive freemium model converting free users</li>
+            <li>Multiple payment options for different budgets</li>
+            <li>Professional basketball analysis technology</li>
+            <li>Live payment processing</li>
+        </ul>
+    </div>
+</body>
+</html>

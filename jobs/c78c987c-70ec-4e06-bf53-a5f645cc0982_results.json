@@ -1,0 +1,77 @@
+{
+  "video_path": "results\\c78c987c-70ec-4e06-bf53-a5f645cc0982_analyzed.mp4",
+  "analysis_complete": true,
+  "processed_at": "2025-08-04T17:55:52.435033",
+  "flaw_stills": [
+    {
+      "file_path": "results\\c78c987c-70ec-4e06-bf53-a5f645cc0982_flaw_guide_hand_on_top_frame_0.png",
+      "filename": "c78c987c-70ec-4e06-bf53-a5f645cc0982_flaw_guide_hand_on_top_frame_0.png",
+      "flaw_data": {
+        "flaw_type": "guide_hand_on_top",
+        "frame_number": 0,
+        "phase": "Release",
+        "severity": 25.0,
+        "description": "Guide hand positioned on top of ball instead of on side",
+        "plain_language": "Your guide hand is positioned on top of the ball. Move it to the side for better control and cleaner release.",
+        "coaching_tip": "Move your guide hand to the side of the ball, not on top. This allows for cleaner release and better ball control.",
+        "drill_suggestion": "Side placement drill: Practice positioning your guide hand on the side of the ball during form shooting.",
+        "camera_context": "Observed from front view"
+      },
+      "frame_number": 0
+    }
+  ],
+  "feedback_stills": [],
+  "detailed_flaws": [
+    {
+      "flaw_type": "guide_hand_on_top",
+      "frame_number": 0,
+      "phase": "Release",
+      "severity": 25.0,
+      "description": "Guide hand positioned on top of ball instead of on side",
+      "plain_language": "Your guide hand is positioned on top of the ball. Move it to the side for better control and cleaner release.",
+      "coaching_tip": "Move your guide hand to the side of the ball, not on top. This allows for cleaner release and better ball control.",
+      "drill_suggestion": "Side placement drill: Practice positioning your guide hand on the side of the ball during form shooting.",
+      "camera_context": "Observed from front view"
+    },
+    {
+      "flaw_type": "shot_lacks_fluidity",
+      "description": "Advanced analysis detected jerky or rushed shooting motion lacking smooth rhythm",
+      "frame_number": 37,
+      "severity": 90.7258064516129,
+      "remedy_tip": "Focus on smooth, rhythmic motion from start to finish. Practice shooting in slow motion to develop muscle memory.",
+      "exercise_tip": "Practice the complete shooting motion without a ball, focusing on fluid movement.",
+      "plain_language": "Your shot motion shows jerky movement (fluidity score: 5.8/100). Work on smoother, more rhythmic motion from start to finish.",
+      "fluidity_details": {
+        "overall_score": 5.8,
+        "acceleration_spikes": 7,
+        "rhythm_breaks": 4
+      }
+    }
+  ],
+  "shot_phases": [
+    {
+      "name": "Load/Dip",
+      "start_frame": 0,
+      "end_frame": 11,
+      "key_moment_frame": 11
+    },
+    {
+      "name": "Release",
+      "start_frame": -3,
+      "end_frame": 9,
+      "key_moment_frame": 1
+    }
+  ],
+  "feedback_points": [
+    {
+      "frame_number": 0,
+      "discrepancy": "Guide Hand On Top: Guide hand positioned on top of ball instead of on side",
+      "ideal_range": "Severity: 25.0/100",
+      "user_value": "Your guide hand is positioned on top of the ball. Move it to the side for better control and cleaner release.",
+      "remedy_tips": "Move your guide hand to the side of the ball, not on top. This allows for cleaner release and better ball control.",
+      "critical_landmarks": [],
+      "severity": 25.0
+    }
+  ],
+  "improvement_plan_pdf": null
+}

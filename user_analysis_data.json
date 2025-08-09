@@ -1,0 +1,8 @@
+{
+  "test@example.com": {
+    "last_free_analysis": "2025-08-08T12:18:50.399935",
+    "total_free_analyses": 1,
+    "current_tier": "free",
+    "last_activity": "2025-08-08T12:18:50.399935"
+  }
+}

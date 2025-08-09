@@ -1,0 +1,37 @@
+# Basketball Analysis Service - Production Dependencies for ApexSports-LLC.com
+# Essential packages for payment processing and web application
+
+# Core Web Framework
+Flask==3.0.0
+gunicorn==21.2.0
+Werkzeug==3.0.1
+
+# Payment Processing
+stripe==6.5.0
+python-dotenv==1.0.0
+
+# Optional: For full analysis functionality
+# opencv-python-headless>=4.8.0,<5.0.0
+# mediapipe>=0.10.0,<0.11.0
+# numpy>=1.24.0,<2.0.0
+mediapipe>=0.10.0,<0.11.0
+numpy>=1.24.0,<2.0.0
+
+# PDF Generation & Reports
+reportlab>=4.0.0,<5.0.0
+
+# System Monitoring & Performance
+psutil>=5.9.0,<6.0.0
+
+# Security & Flask Ecosystem
+cryptography>=41.0.0
+itsdangerous>=2.1.0
+Jinja2>=3.1.0
+MarkupSafe>=2.1.0
+click>=8.1.0
+
+# Environment & Configuration
+python-dotenv>=1.0.0
+
+# Payment Processing
+stripe>=8.0.0
