@@ -233,9 +233,8 @@ class BasketballAnalysisPDFGenerator:
         detailed_flaws = analysis_results.get('detailed_flaws', [])
         
         if detailed_flaws:
-            # Overall assessment with safe severity calculation
-            severities = [flaw.get('severity', 0) for flaw in detailed_flaws]
-            avg_severity = sum(severities) / len(severities) if severities else 0
+            # Overall assessment
+            avg_severity = sum(flaw['severity'] for flaw in detailed_flaws) / len(detailed_flaws)
             
             if avg_severity < 20:
                 assessment = "Your shooting form shows minor areas for improvement with excellent fundamentals."
@@ -254,16 +253,10 @@ class BasketballAnalysisPDFGenerator:
             content.append(Paragraph("Primary Areas for Improvement:", self.heading2_style))
             
             for i, flaw in enumerate(detailed_flaws[:3], 1):
-                # Handle missing fields gracefully
-                flaw_type = flaw.get('flaw_type', 'Unknown Flaw').replace('_', ' ').title()
-                severity = flaw.get('severity', 0)
-                plain_language = flaw.get('plain_language', 'Issue detected with shooting form.')
-                coaching_tip = flaw.get('coaching_tip', 'Focus on proper technique.')
-                
                 flaw_text = f"""
-                <b>{i}. {flaw_type}</b> (Severity: {severity:.1f})<br/>
-                <i>Issue:</i> {plain_language}<br/>
-                <i>Primary Focus:</i> {coaching_tip}
+                <b>{i}. {flaw['flaw_type'].replace('_', ' ').title()}</b> (Severity: {flaw['severity']:.1f})<br/>
+                <i>Issue:</i> {flaw['plain_language']}<br/>
+                <i>Primary Focus:</i> {flaw['coaching_tip']}
                 """
                 content.append(Paragraph(flaw_text, self.body_style))
                 content.append(Spacer(1, 8))
@@ -299,18 +292,14 @@ class BasketballAnalysisPDFGenerator:
             return content
             
         for i, flaw in enumerate(detailed_flaws, 1):
-            # Handle missing fields gracefully
-            flaw_type = flaw.get('flaw_type', 'unknown_flaw')
-            severity = flaw.get('severity', 0)
-            
-            content.append(Paragraph(f"Flaw #{i}: {flaw_type.replace('_', ' ').title()}", self.heading2_style))
+            content.append(Paragraph(f"Flaw #{i}: {flaw['flaw_type'].replace('_', ' ').title()}", self.heading2_style))
             
             # Flaw details table
             flaw_data = [
-                ['Severity Level:', f"{severity:.1f}/100"],
+                ['Severity Level:', f"{flaw['severity']:.1f}/100"],
                 ['Shot Phase:', flaw.get('phase', 'Overall Motion')],
                 ['Frame Location:', f"Frame {flaw.get('frame_number', 'N/A')}"],
-                ['Category:', self._get_flaw_category(flaw_type)]
+                ['Category:', self._get_flaw_category(flaw['flaw_type'])]
             ]
             
             table = Table(flaw_data, colWidths=[1.5*inch, 2*inch])
@@ -333,13 +322,13 @@ class BasketballAnalysisPDFGenerator:
             content.append(Spacer(1, 8))
             
             # Impact on shooting
-            impact = self._get_flaw_impact(flaw_type)
+            impact = self._get_flaw_impact(flaw['flaw_type'])
             content.append(Paragraph("<b>Impact on Your Shot:</b>", self.heading3_style))
             content.append(Paragraph(impact, self.body_style))
             content.append(Spacer(1, 8))
             
             # Biomechanical explanation
-            biomech = self._get_biomechanical_explanation(flaw_type)
+            biomech = self._get_biomechanical_explanation(flaw['flaw_type'])
             content.append(Paragraph("<b>Biomechanical Analysis:</b>", self.heading3_style))
             content.append(Paragraph(biomech, self.body_style))
             content.append(Spacer(1, 8))
@@ -513,10 +502,9 @@ class BasketballAnalysisPDFGenerator:
             content.append(Spacer(1, 10))
             
             for flaw in detailed_flaws:
-                flaw_type = flaw.get('flaw_type', 'unknown_flaw')
-                flaw_drills = self._get_flaw_specific_drills(flaw_type)
+                flaw_drills = self._get_flaw_specific_drills(flaw['flaw_type'])
                 
-                content.append(Paragraph(f"For {flaw_type.replace('_', ' ').title()}:", self.heading3_style))
+                content.append(Paragraph(f"For {flaw['flaw_type'].replace('_', ' ').title()}:", self.heading3_style))
                 
                 for drill in flaw_drills:
                     content.extend(self._format_drill(drill))
@@ -639,14 +627,11 @@ class BasketballAnalysisPDFGenerator:
         detailed_flaws = analysis_results.get('detailed_flaws', [])
         if detailed_flaws:
             for i, flaw in enumerate(detailed_flaws[:3], 1):
-                flaw_type = flaw.get('flaw_type', 'unknown_flaw')
-                severity = flaw.get('severity', 0)
-                
                 benchmark_text = f"""
-                <b>Week {i*2}: {flaw_type.replace('_', ' ').title()}</b><br/>
-                Target: Reduce severity from {severity:.1f} to {max(0, severity-15):.1f}<br/>
-                Measure: {self._get_flaw_measurement(flaw_type)}<br/>
-                Success Indicator: {self._get_success_indicator(flaw_type)}
+                <b>Week {i*2}: {flaw['flaw_type'].replace('_', ' ').title()}</b><br/>
+                Target: Reduce severity from {flaw['severity']:.1f} to {max(0, flaw['severity']-15):.1f}<br/>
+                Measure: {self._get_flaw_measurement(flaw['flaw_type'])}<br/>
+                Success Indicator: {self._get_success_indicator(flaw['flaw_type'])}
                 """
                 content.append(Paragraph(benchmark_text, self.body_style))
                 content.append(Spacer(1, 10))

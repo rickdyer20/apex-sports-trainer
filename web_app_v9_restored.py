@@ -1,23 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response
 import os
 import uuid
-import shutil
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
 import threading
 import time
-import logging
-
-# Configure production logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('basketball_analysis.log'),
-        logging.StreamHandler()
-    ]
-)
 
 # Import our basketball analysis service
 from basketball_analysis_service import (
@@ -89,8 +77,6 @@ def load_job_from_file(job_id):
 def save_results_to_file(job_id, results_data):
     """Save results data to file for persistence"""
     try:
-        print(f"DEBUG: save_results_to_file called for job {job_id}")
-        
         # Ensure jobs directory exists
         jobs_dir = 'jobs'
         if not os.path.exists(jobs_dir):
@@ -100,69 +86,47 @@ def save_results_to_file(job_id, results_data):
         results_file = os.path.join(jobs_dir, f"{job_id}_results.json")
         print(f"DEBUG: Attempting to save results to: {results_file}")
         
-        # Check if we can write to the directory
-        try:
-            test_file = os.path.join(jobs_dir, f"test_{job_id}.tmp")
-            with open(test_file, 'w') as f:
-                f.write("test")
-            os.remove(test_file)
-            print(f"DEBUG: Directory write test successful for {jobs_dir}")
-        except Exception as write_test_error:
-            print(f"DEBUG: Directory write test failed: {write_test_error}")
-            raise write_test_error
-        
         serializable_data = results_data.copy()
-        print(f"DEBUG: Original data keys: {list(serializable_data.keys())}")
         
         # Convert datetime objects to ISO strings
         if 'processed_at' in serializable_data:
-            if hasattr(serializable_data['processed_at'], 'isoformat'):
-                serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
-            print(f"DEBUG: Converted processed_at to string")
+            serializable_data['processed_at'] = serializable_data['processed_at'].isoformat()
         
         # Convert complex objects to serializable format
         def make_serializable(obj, depth=0, max_depth=5):
-            try:
-                # Prevent infinite recursion
-                if depth > max_depth:
+            # Prevent infinite recursion
+            if depth > max_depth:
+                return str(obj)
+            
+            # Handle basic types first
+            if obj is None or isinstance(obj, (str, int, float, bool)):
+                return obj
+            elif isinstance(obj, list):
+                return [make_serializable(item, depth + 1, max_depth) for item in obj]
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
+            elif hasattr(obj, '__dict__'):
+                # Skip MediaPipe and OpenCV objects - just convert to string representation
+                if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy.ndarray']):
                     return str(obj)
-                
-                # Handle basic types first
-                if obj is None or isinstance(obj, (str, int, float, bool)):
-                    return obj
-                elif isinstance(obj, list):
-                    return [make_serializable(item, depth + 1, max_depth) for item in obj]
-                elif isinstance(obj, dict):
-                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
-                elif hasattr(obj, '__dict__'):
-                    # Skip MediaPipe and OpenCV objects - just convert to string representation
-                    if any(x in str(type(obj)) for x in ['mediapipe', 'cv2', 'numpy.ndarray']):
-                        return str(obj)
-                    # Convert other objects with attributes to dictionaries
-                    try:
-                        return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
-                    except:
-                        return str(obj)
-                else:
+                # Convert other objects with attributes to dictionaries
+                try:
+                    return {k: make_serializable(v, depth + 1, max_depth) for k, v in obj.__dict__.items()}
+                except:
                     return str(obj)
-            except Exception as make_serializable_error:
-                print(f"DEBUG: make_serializable error for {type(obj)}: {make_serializable_error}")
+            else:
                 return str(obj)
         
         # Apply serialization to complex fields
         for key in ['shot_phases', 'detailed_flaws', 'feedback_points']:
             if key in serializable_data:
-                print(f"DEBUG: Serializing {key} with {len(serializable_data[key]) if isinstance(serializable_data[key], list) else 'unknown'} items")
                 serializable_data[key] = make_serializable(serializable_data[key])
-                print(f"DEBUG: Serialized {key} successfully")
         
-        print(f"DEBUG: About to write JSON to file")
         with open(results_file, 'w') as f:
             json.dump(serializable_data, f, indent=2)
         
         print(f"DEBUG: Successfully saved results {job_id} to file")
-        file_size = os.path.getsize(results_file) if os.path.exists(results_file) else 0
-        print(f"DEBUG: File size: {file_size} bytes")
+        print(f"DEBUG: File size: {os.path.getsize(results_file)} bytes")
         
         # Verify the file was written correctly
         if os.path.exists(results_file):
@@ -170,19 +134,13 @@ def save_results_to_file(job_id, results_data):
                 with open(results_file, 'r') as f:
                     test_load = json.load(f)
                 print(f"DEBUG: Results file verification successful")
-                return True
             except Exception as e:
                 print(f"DEBUG: Results file verification failed: {e}")
-                return False
-        else:
-            print(f"DEBUG: Results file does not exist after write attempt")
-            return False
         
     except Exception as e:
         print(f"DEBUG: Failed to save results {job_id}: {e}")
         import traceback
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
-        return False
 
 def load_results_from_file(job_id):
     """Load results data from file"""
@@ -253,20 +211,16 @@ def allowed_file(filename):
 
 
 def process_video_async(job_id, video_path, ideal_data):
-    """Process video analysis in background thread with production optimizations"""
+    """Process video analysis in background thread"""
     import signal
     import threading
-    import time
-    
-    start_time = time.time()
-    logging.info(f"Starting analysis for job {job_id}")
     
     def timeout_handler(signum, frame):
         raise TimeoutError("Analysis timeout - processing took too long")
     
     try:
-        # Set timeout for analysis - OPTIMIZED FOR FASTER PROCESSING
-        timeout_seconds = 120  # REDUCED from 5 minutes to 2 minutes for faster feedback and preventing hangs
+        # Set timeout for analysis (10 minutes for deployment)
+        timeout_seconds = 600  # 10 minutes
         
         # Update job status
         analysis_jobs[job_id]['status'] = 'PROCESSING'
@@ -321,12 +275,6 @@ def process_video_async(job_id, video_path, ideal_data):
             print(f"DEBUG: Analysis results keys: {analysis_results.keys()}")
         else:
             print(f"DEBUG: Analysis results is None or empty")
-        
-        # Update status to show post-processing phase
-        analysis_jobs[job_id]['status'] = 'FINALIZING'
-        analysis_jobs[job_id]['updated_at'] = datetime.now()
-        save_job_to_file(job_id, analysis_jobs[job_id])
-        logging.info(f"Job {job_id} entering finalization phase - processing and organizing output files")
         
         # Check if analysis encountered errors
         if analysis_results and 'error' in analysis_results:
@@ -442,46 +390,12 @@ def process_video_async(job_id, video_path, ideal_data):
         print(f"DEBUG: Analysis complete: {job_results[job_id].get('analysis_complete', False)}")
         print(f"DEBUG: Video path exists: {job_results[job_id].get('video_path') and os.path.exists(job_results[job_id]['video_path'])}")
         
-        try:
-            save_results_to_file(job_id, job_results[job_id])
-            print(f"DEBUG: Results saved successfully for job {job_id}")
-        except Exception as e:
-            print(f"ERROR: Failed to save results for job {job_id}: {e}")
-            import traceback
-            print(f"ERROR: Traceback: {traceback.format_exc()}")
-            # Try to save a minimal results file as fallback
-            try:
-                minimal_results = {
-                    'video_path': job_results[job_id].get('video_path'),
-                    'analysis_complete': job_results[job_id].get('analysis_complete', True),
-                    'processed_at': datetime.now().isoformat(),
-                    'flaw_stills': job_results[job_id].get('flaw_stills', []),
-                    'feedback_stills': job_results[job_id].get('feedback_stills', []),
-                    'detailed_flaws': [],
-                    'shot_phases': [],
-                    'feedback_points': [],
-                    'improvement_plan_pdf': job_results[job_id].get('improvement_plan_pdf'),
-                    'error': 'Results processing failed but analysis completed'
-                }
-                results_file = os.path.join('jobs', f"{job_id}_results.json")
-                with open(results_file, 'w') as f:
-                    json.dump(minimal_results, f, indent=2)
-                print(f"DEBUG: Saved minimal results file for job {job_id}")
-            except Exception as fallback_error:
-                print(f"ERROR: Failed to save even minimal results for job {job_id}: {fallback_error}")
+        save_results_to_file(job_id, job_results[job_id])
         
-        # Log performance metrics
-        end_time = time.time()
-        processing_time = end_time - start_time
-        logging.info(f"Analysis completed for job {job_id} in {processing_time:.2f} seconds")
-        logging.info(f"Generated {len(job_results[job_id].get('flaw_stills', []))} flaw stills")
-        
-        # Update job status to COMPLETED only after all file operations are complete
+        # Update job status
         analysis_jobs[job_id]['status'] = 'COMPLETED'
         analysis_jobs[job_id]['updated_at'] = datetime.now()
         save_job_to_file(job_id, analysis_jobs[job_id])
-        
-        logging.info(f"Job {job_id} fully completed - all files processed and moved to final locations")
         
     except Exception as e:
         print(f"Error processing job {job_id}: {e}")
@@ -489,30 +403,6 @@ def process_video_async(job_id, video_path, ideal_data):
         analysis_jobs[job_id]['error'] = str(e)
         analysis_jobs[job_id]['updated_at'] = datetime.now()
         save_job_to_file(job_id, analysis_jobs[job_id])
-
-# RENDER OPTIMIZATION: Health check endpoint for monitoring
-@app.route('/health')
-def health_check():
-    """Health check endpoint for Render deployment"""
-    import psutil
-    try:
-        # Basic health metrics for monitoring
-        memory_info = psutil.virtual_memory()
-        health_data = {
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'memory_usage': f"{memory_info.percent}%",
-            'available_memory_gb': round(memory_info.available / (1024**3), 2),
-            'active_jobs': len([job for job in analysis_jobs.values() if job.get('status') == 'PROCESSING']),
-            'total_jobs': len(analysis_jobs)
-        }
-        return jsonify(health_data), 200
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
 
 @app.route('/')
 def index():
@@ -739,7 +629,7 @@ def demo_results():
 
 @app.route('/results/<job_id>')
 def view_results(job_id):
-    """View analysis results with caching for production"""
+    """View analysis results"""
     if job_id not in analysis_jobs:
         # Try to load from file
         job_data = load_job_from_file(job_id)
@@ -755,9 +645,9 @@ def view_results(job_id):
     
     job_status = analysis_jobs[job_id]['status']
     
-    if job_status == 'PROCESSING' or job_status == 'PENDING' or job_status == 'FINALIZING':
+    if job_status == 'PROCESSING':
         flash('Analysis is still in progress. Please wait...')
-        return redirect(url_for('analysis_status', job_id=job_id))
+        return redirect(url_for('index'))
     elif job_status == 'FAILED':
         if job_id in job_results and 'error' in job_results[job_id]:
             flash(f'Analysis failed: {job_results[job_id]["error"]}')
@@ -803,9 +693,7 @@ def view_results(job_id):
     if 'warning' in results:
         flash(results['warning'], 'warning')
     
-    # Add cache headers for production performance
-    response = render_template('results.html', job=job, results=results, job_id=job_id)
-    return response
+    return render_template('results.html', job=job, results=results, job_id=job_id)
 
 @app.route('/download/<job_id>')
 def download_result(job_id):
@@ -955,219 +843,33 @@ Analysis Date: {results['processed_at'].strftime('%B %d, %Y at %I:%M %p')}
 PACKAGE CONTENTS:
 - analyzed_video_{job_id}.mp4: Slow-motion video with pose overlays and analysis
 - {improvement_plan['filename'] if improvement_plan else 'N/A'}: Comprehensive 60-day improvement plan
-- detailed_flaws_report.txt: Comprehensive breakdown of detected issues
-- flaw_analysis/: Frame stills showing detected flaws (if available)
-- feedback_frames/: Additional feedback frame captures (if available)
+- flaw_analysis/: Frame stills showing detected flaws with coaching overlays
+- feedback_frames/: Additional feedback frame captures
 
 DETECTED FLAWS: {len(results.get('detailed_flaws', []))}
 """
         
-        # Add detailed flaw information
-        if results.get('detailed_flaws'):
-            for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
-                # Handle both dictionary and object formats for compatibility
-                def safe_get(obj, key, default='Unknown'):
-                    if hasattr(obj, 'get'):
-                        return obj.get(key, default)
-                    else:
-                        return getattr(obj, key, default)
-                
-                flaw_type = safe_get(flaw, 'flaw_type', 'Unknown')
-                severity = safe_get(flaw, 'severity', 0)
-                phase = safe_get(flaw, 'phase', 'Unknown')
-                frame_number = safe_get(flaw, 'frame_number', 'Unknown')
-                camera_context = safe_get(flaw, 'camera_context', '')
-                plain_language = safe_get(flaw, 'plain_language', 'No description available')
-                coaching_tip = safe_get(flaw, 'coaching_tip', 'No coaching tip available')
-                drill_suggestion = safe_get(flaw, 'drill_suggestion', 'No drill suggestion available')
-                
-                summary_content += f"""
-{i}. {flaw_type.replace('_', ' ').title()}
-   Severity: {severity:.1f}/100
-   Phase: {phase}
-   Frame: {frame_number}
-   {f"Camera View: {camera_context}" if camera_context else ""}
-   Issue: {plain_language}
-   Coaching Tip: {coaching_tip}
-   Recommended Drill: {drill_suggestion}
-"""
-        else:
-            summary_content += "\nNo specific flaws detected in this analysis."
-        
-        # Add shot phases information
-        if results.get('shot_phases'):
+        for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
             summary_content += f"""
-
-SHOT PHASES IDENTIFIED: {len(results.get('shot_phases', []))}
-"""
-            for i, phase in enumerate(results.get('shot_phases', []), 1):
-                # Handle both dictionary and object formats for compatibility
-                def safe_get(obj, key, default='Unknown'):
-                    if hasattr(obj, 'get'):
-                        return obj.get(key, default)
-                    else:
-                        return getattr(obj, key, default)
-                
-                phase_name = safe_get(phase, 'name', 'Unknown Phase')
-                start_frame = safe_get(phase, 'start_frame', 'Unknown')
-                end_frame = safe_get(phase, 'end_frame', 'Unknown')
-                key_moment = safe_get(phase, 'key_moment_frame', 'Unknown')
-                
-                summary_content += f"""
-{i}. {phase_name}
-   Start Frame: {start_frame}
-   End Frame: {end_frame}
-   Key Moment: Frame {key_moment}
-"""
-        
-        # Add feedback points
-        if results.get('feedback_points'):
-            summary_content += f"""
-
-BIOMECHANICAL FEEDBACK: {len(results.get('feedback_points', []))} Point(s)
-"""
-            for i, feedback in enumerate(results.get('feedback_points', []), 1):
-                # Handle both dictionary and object formats for compatibility
-                def safe_get(obj, key, default='Unknown'):
-                    if hasattr(obj, 'get'):
-                        return obj.get(key, default)
-                    else:
-                        return getattr(obj, key, default)
-                
-                frame_num = safe_get(feedback, 'frame_number', 'Unknown')
-                discrepancy = safe_get(feedback, 'discrepancy', 'No description available')
-                remedy = safe_get(feedback, 'remedy_tips', 'No remedy tips available')
-                
-                summary_content += f"""
-{i}. Frame {frame_num}
-   Issue: {discrepancy}
-   Remedy: {remedy}
+{i}. {flaw.get('flaw_type', 'Unknown').replace('_', ' ').title()}
+   Severity: {flaw.get('severity', 0):.1f}/100
+   Phase: {flaw.get('phase', 'Unknown')}
+   Issue: {flaw.get('plain_language', 'No description available')}
 """
         
         summary_content += f"""
 
-FRAME STILLS CAPTURED:
-- Flaw Analysis Stills: {len(flaw_stills)} {'(images included in flaw_analysis/ folder)' if flaw_stills else '(no stills captured - analysis used improved detection that only flags significant flaws)'}
-- Feedback Frame Stills: {len(feedback_stills)} {'(images included in feedback_frames/ folder)' if feedback_stills else '(no stills captured - biomechanical analysis provided via video overlay)'}
-
-{f"FOLDER STRUCTURE:" if flaw_stills or feedback_stills else ""}
-{f"- flaw_analysis/: Contains {len(flaw_stills)} frame still(s) showing detected shooting form issues" if flaw_stills else ""}
-{f"- feedback_frames/: Contains {len(feedback_stills)} additional analysis frame(s)" if feedback_stills else ""}
-
 NEXT STEPS:
 1. Review the 60-day improvement plan PDF for detailed training guidance
-2. Watch the analyzed video to see pose overlays and phase markers
-3. Study the detailed flaws report for specific improvements needed
-4. Follow the progressive drill recommendations for each identified flaw
-5. Re-analyze your shot every 2 weeks using the Basketball Analysis App
-6. Track your progress using the provided benchmarks
-
-TECHNICAL NOTES:
-- All analysis based on MediaPipe pose estimation and biomechanical calculations
-- Camera angle detection ensures only observable flaws are reported
-- Severity scores range from 0-100 (higher = more significant issue)
-- Coaching tips are tailored to your specific form deviations
+2. Study the flaw analysis images to understand specific issues
+3. Follow the progressive drill recommendations
+4. Re-analyze your shot every 2 weeks using the Basketball Analysis App
+5. Track your progress using the provided benchmarks
 
 For questions or support, visit: www.basketballanalysis.ai
 """
         
         zip_file.writestr(f"Analysis_Summary_{job_id}.txt", summary_content)
-        
-        # Create detailed flaws report
-        flaws_report = f"""DETAILED SHOOTING FLAWS REPORT
-Analysis ID: {job_id}
-Generated: {results['processed_at'].strftime('%B %d, %Y at %I:%M %p')}
-
-This report provides comprehensive information about each shooting flaw detected
-during your basketball shot analysis, including technical details, coaching
-guidance, and improvement recommendations.
-
-===============================================================================
-"""
-        
-        if results.get('detailed_flaws'):
-            for i, flaw in enumerate(results.get('detailed_flaws', []), 1):
-                # Handle both dictionary and object formats for compatibility
-                def safe_get(obj, key, default='Unknown'):
-                    if hasattr(obj, 'get'):
-                        return obj.get(key, default)
-                    else:
-                        return getattr(obj, key, default)
-                
-                flaw_type = safe_get(flaw, 'flaw_type', 'Unknown')
-                severity = safe_get(flaw, 'severity', 0)
-                phase = safe_get(flaw, 'phase', 'Unknown')
-                frame_number = safe_get(flaw, 'frame_number', 'Unknown')
-                camera_context = safe_get(flaw, 'camera_context', 'Not specified')
-                description = safe_get(flaw, 'description', 'No technical description available')
-                plain_language = safe_get(flaw, 'plain_language', 'No explanation available')
-                coaching_tip = safe_get(flaw, 'coaching_tip', 'No coaching tip available')
-                drill_suggestion = safe_get(flaw, 'drill_suggestion', 'No drill suggestion available')
-                
-                flaws_report += f"""
-FLAW #{i}: {flaw_type.replace('_', ' ').upper()}
-===============================================================================
-Type: {flaw_type}
-Severity Score: {severity:.2f}/100
-Shot Phase: {phase}
-Frame Number: {frame_number}
-Camera Context: {camera_context}
-
-DESCRIPTION:
-{description}
-
-PLAIN LANGUAGE EXPLANATION:
-{plain_language}
-
-COACHING TIP:
-{coaching_tip}
-
-RECOMMENDED DRILL:
-{drill_suggestion}
-
-"""
-        else:
-            flaws_report += """
-NO SIGNIFICANT FLAWS DETECTED
-===============================================================================
-Your shooting form analysis did not identify any major technical issues that
-exceed our detection thresholds. This could indicate:
-
-1. Good fundamental shooting mechanics
-2. Consistent form throughout the shot motion
-3. Camera angle limitations (some issues may not be visible)
-4. Improved detection system that only flags significant issues
-
-WHY NO FRAME STILLS WERE CAPTURED:
-Our enhanced analysis system now uses more discerning detection that only
-captures frame stills when significant flaws are identified. If no stills
-were generated, it means your shooting form passed our quality checks,
-though there may still be minor biomechanical feedback provided in the
-video analysis.
-
-RECOMMENDATIONS:
-- Continue practicing your current form
-- Focus on consistency and repetition
-- Review the video analysis for subtle biomechanical feedback
-- Consider recording from different angles for more comprehensive analysis
-- Re-analyze periodically to track any changes in form
-
-"""
-        
-        flaws_report += f"""
-===============================================================================
-ANALYSIS METHODOLOGY:
-- Pose estimation: MediaPipe with 33 body landmarks
-- Angle calculations: Vector mathematics for joint positions
-- Threshold validation: Statistical analysis across multiple frames
-- Camera awareness: Automatic detection of viewing angle limitations
-- Severity scoring: Deviation from biomechanically optimal ranges
-
-For more information about our analysis methods and to upload additional
-videos, visit: www.basketballanalysis.ai
-"""
-        
-        zip_file.writestr(f"detailed_flaws_report_{job_id}.txt", flaws_report)
     
     zip_buffer.seek(0)
     
@@ -1234,8 +936,17 @@ def about():
     """About page explaining the analysis"""
     return render_template('about.html')
 
+@app.route('/health')
+def health():
+    """Simple health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'Basketball Analysis Service',
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/health')
-def health_check_api():
+def health_check():
     """Comprehensive health check endpoint"""
     health_status = {
         'status': 'healthy',
@@ -1290,72 +1001,6 @@ def health_check_api():
     
     return jsonify(health_status)
 
-@app.route('/clear-cache', methods=['POST', 'GET'])
-def clear_cache():
-    """Clear all in-memory and file caches for fresh analysis"""
-    try:
-        global job_results, analysis_jobs
-        
-        # Clear in-memory caches
-        cache_cleared = {
-            'memory_jobs_cleared': len(analysis_jobs),
-            'memory_results_cleared': len(job_results),
-            'files_cleared': 0,
-            'temp_files_cleared': 0
-        }
-        
-        analysis_jobs.clear()
-        job_results.clear()
-        
-        # Clear file-based caches
-        import glob
-        jobs_dir = 'jobs'
-        if os.path.exists(jobs_dir):
-            cache_files = glob.glob(os.path.join(jobs_dir, '*_results.json'))
-            for cache_file in cache_files:
-                try:
-                    os.remove(cache_file)
-                    cache_cleared['files_cleared'] += 1
-                except:
-                    pass
-        
-        # Clear temporary files
-        temp_patterns = ['temp_*.mp4', 'temp_*.png', 'temp_*_frames']
-        for pattern in temp_patterns:
-            temp_files = glob.glob(pattern)
-            cache_cleared['temp_files_cleared'] += len(temp_files)
-            for temp_file in temp_files:
-                try:
-                    if os.path.isdir(temp_file):
-                        shutil.rmtree(temp_file)
-                    else:
-                        os.remove(temp_file)
-                except:
-                    pass
-        
-        flash(f"✅ Cache cleared! Memory: {cache_cleared['memory_jobs_cleared']} jobs, {cache_cleared['memory_results_cleared']} results. Files: {cache_cleared['files_cleared']} cache files, {cache_cleared['temp_files_cleared']} temp files.", 'success')
-        
-        if request.method == 'GET':
-            return jsonify({
-                'status': 'success',
-                'message': 'All caches cleared successfully',
-                'details': cache_cleared
-            })
-        else:
-            return redirect(url_for('index'))
-            
-    except Exception as e:
-        error_msg = f"❌ Error clearing cache: {str(e)}"
-        flash(error_msg, 'error')
-        
-        if request.method == 'GET':
-            return jsonify({
-                'status': 'error',
-                'message': error_msg
-            }), 500
-        else:
-            return redirect(url_for('index'))
-
 if __name__ == '__main__':
     print("🏀 Basketball Analysis Web Service Starting...")
     print("📊 Service Features:")
@@ -1364,17 +1009,7 @@ if __name__ == '__main__':
     print("   • Biomechanical feedback")
     print("   • Downloadable results")
     print("   • Analysis history")
+    print("\n🌐 Starting web server at http://127.0.0.1:5000")
+    print("📝 Upload a basketball shot video to begin analysis!")
     
-    # Environment-based configuration for both development and production
-    debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
-    host = os.environ.get('FLASK_HOST', '127.0.0.1')
-    port = int(os.environ.get('PORT', 5000))
-    
-    if debug_mode:
-        print(f"\n🌐 Starting development server at http://{host}:{port}")
-        print("📝 Upload a basketball shot video to begin analysis!")
-    else:
-        print(f"\n🌐 Starting production server on {host}:{port}")
-        print("🔧 Optimized for performance with reduced resource usage")
-    
-    app.run(debug=debug_mode, host=host, port=port)
+    app.run(debug=True, host='127.0.0.1', port=5000)

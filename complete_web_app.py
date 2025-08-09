@@ -54,63 +54,7 @@ def allowed_file(filename):
 @app.route('/')
 def index():
     """Homepage"""
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Basketball Analysis Service</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-            .hero { text-align: center; color: white; padding: 60px 20px; }
-            h1 { font-size: 3em; margin-bottom: 20px; }
-            .subtitle { font-size: 1.3em; margin-bottom: 40px; opacity: 0.9; }
-            .cta-button { display: inline-block; padding: 15px 30px; background: #28a745; color: white; text-decoration: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; margin: 10px; transition: all 0.3s; }
-            .cta-button:hover { background: #218838; transform: translateY(-2px); }
-            .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin: 60px 0; }
-            .feature { background: white; padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-            .nav { background: rgba(255,255,255,0.1); padding: 15px 0; margin-bottom: 20px; }
-            .nav a { color: white; text-decoration: none; margin: 0 20px; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <div class="nav">
-            <div class="container">
-                <a href="/">Home</a>
-                <a href="/pricing">Pricing</a>
-                <a href="/terms">Terms</a>
-                <a href="/privacy">Privacy</a>
-            </div>
-        </div>
-        
-        <div class="container">
-            <div class="hero">
-                <h1>🏀 Basketball Analysis Service</h1>
-                <p class="subtitle">AI-powered shot analysis to improve your game</p>
-                <a href="/pricing" class="cta-button">Get Started</a>
-                <a href="#features" class="cta-button" style="background: transparent; border: 2px solid white;">Learn More</a>
-            </div>
-            
-            <div class="features" id="features">
-                <div class="feature">
-                    <h3>🎯 Shot Analysis</h3>
-                    <p>Advanced AI analyzes your shooting form with biomechanical precision</p>
-                </div>
-                <div class="feature">
-                    <h3>📊 Detailed Reports</h3>
-                    <p>Get comprehensive feedback with improvement recommendations</p>
-                </div>
-                <div class="feature">
-                    <h3>🎥 Video Breakdown</h3>
-                    <p>Slow-motion analysis with annotated coaching points</p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """)
+    return render_template('index_simple.html')
 
 # ================================
 # PAYMENT & PRICING ROUTES
@@ -242,9 +186,14 @@ def user_stats(user_email):
     stats = tracker.get_user_stats(user_email)
     return jsonify(stats)
 
-@app.route('/analyze', methods=['POST'])
-def analyze_video():
-    """Analyze uploaded video (with usage tracking)"""
+@app.route('/analyze', methods=['GET', 'POST'])
+def analyze():
+    """Video analysis page and processing"""
+    if request.method == 'GET':
+        # Show the upload form
+        return render_template('analyze_simple.html')
+    
+    # POST method - process the uploaded video
     user_email = request.form.get('email', 'anonymous')
     user_tier = request.form.get('tier', 'free')
     

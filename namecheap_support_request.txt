@@ -1,0 +1,34 @@
+Subject: SSH/cPanel Access Needed for Python Flask Application Deployment
+
+Hello Namecheap Support,
+
+I need to deploy a Python Flask application to my domain: apexsports-llc.com
+
+Current Issue:
+- Cannot locate cPanel or Terminal access in my dashboard
+- Need to upload and run a Python Flask application
+- Have deployment files ready but need server access
+
+Requirements:
+1. SSH/Terminal access to my hosting account
+2. Python 3.x support with pip package installation
+3. Ability to run Flask applications
+4. Access to public_html directory
+
+Application Details:
+- Basketball shot analysis service
+- Uses Flask, Stripe payment processing
+- Production-ready with live API keys
+- Needs to run on port 80/443
+
+Please provide:
+- cPanel login URL and credentials
+- SSH access details (username, host, port)
+- Python version available on server
+- Any specific deployment instructions for Flask apps
+
+Thank you for your assistance.
+
+Best regards,
+[Your Name]
+Domain: apexsports-llc.com

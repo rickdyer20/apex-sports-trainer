@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white text-center py-4">
+                    <h2 class="mb-0">
+                        <i class="fas fa-video me-2"></i>
+                        Basketball Shot Analysis
+                    </h2>
+                    <p class="mb-0 mt-2">Upload your shooting video for AI-powered analysis</p>
+                </div>
+                
+                <div class="card-body p-5">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else 'info' }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                        <!-- Email Input -->
+                        <div class="mb-4">
+                            <label for="email" class="form-label">
+                                <i class="fas fa-envelope me-2"></i>Email Address
+                            </label>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" required 
+                                   placeholder="your.email@example.com">
+                            <div class="form-text">Used for tracking your analysis usage and sending results</div>
+                        </div>
+                        
+                        <!-- Tier Selection -->
+                        <div class="mb-4">
+                            <label for="tier" class="form-label">
+                                <i class="fas fa-crown me-2"></i>Your Subscription Tier
+                            </label>
+                            <select class="form-select form-select-lg" id="tier" name="tier" required>
+                                <option value="free">Free (1 analysis per year)</option>
+                                <option value="onetime">One-time Purchase ($9.99)</option>
+                                <option value="pro">Pro Monthly ($19.99/month)</option>
+                                <option value="enterprise">Enterprise ($49.99/month)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Video Upload -->
+                        <div class="mb-4">
+                            <label for="video" class="form-label">
+                                <i class="fas fa-upload me-2"></i>Upload Basketball Shooting Video
+                            </label>
+                            <input type="file" class="form-control form-control-lg" id="video" name="video" 
+                                   accept=".mp4,.avi,.mov,.mkv" required>
+                            <div class="form-text">
+                                Supported formats: MP4, AVI, MOV, MKV (Max 100MB)
+                            </div>
+                        </div>
+                        
+                        <!-- Recording Guidelines -->
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle me-2"></i>Recording Tips for Best Results:</h6>
+                            <ul class="mb-0 small">
+                                <li>Record from the side view (perpendicular to the shooter)</li>
+                                <li>Ensure the full body is visible from feet to head</li>
+                                <li>Good lighting and stable camera position</li>
+                                <li>Record the complete shooting motion (load, release, follow-through)</li>
+                                <li>Recommended duration: 10-30 seconds</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Legal Disclaimer -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="terms" name="terms" required>
+                            <label class="form-check-label" for="terms">
+                                I agree to the <a href="{{ url_for('terms') }}" target="_blank">Terms of Service</a> 
+                                and <a href="{{ url_for('privacy') }}" target="_blank">Privacy Policy</a>
+                            </label>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                <i class="fas fa-rocket me-2"></i>
+                                Analyze My Shot
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Analysis Features -->
+            <div class="row mt-5">
+                <div class="col-md-4 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-eye fa-3x text-primary mb-3"></i>
+                    </div>
+                    <h5>AI Pose Detection</h5>
+                    <p class="text-muted">Advanced computer vision analyzes your shooting form</p>
+                </div>
+                <div class="col-md-4 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line fa-3x text-success mb-3"></i>
+                    </div>
+                    <h5>Biomechanical Analysis</h5>
+                    <p class="text-muted">Detailed joint angle and movement analysis</p>
+                </div>
+                <div class="col-md-4 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-graduation-cap fa-3x text-info mb-3"></i>
+                    </div>
+                    <h5>Expert Feedback</h5>
+                    <p class="text-muted">Personalized coaching tips and improvement plans</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
+    submitBtn.disabled = true;
+});
+</script>
+{% endblock %}

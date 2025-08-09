@@ -15,10 +15,6 @@ import shutil
 import gc
 from datetime import datetime
 
-# 🎯 FEATURE FLAGS FOR EASY REVERSIBILITY
-# Set these to False to disable new features if issues arise
-ENABLE_SHOULDER_ALIGNMENT_DETECTION = True  # New shoulder squaring detection
-
 # Optional imports with graceful fallbacks
 try:
     import psutil
@@ -792,7 +788,7 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
     flaw_detectors = {
         'elbow_flare': {
             'description': 'Shooting elbow positioned too far from body',
-            'check_phase': 'Load_Release',  # Check during Load/Dip AND Release phases where it's most problematic
+            'check_phase': 'Release',  # Only check during release phase and follow-through, not during load/dip
             'threshold': 15,  # Lowered from 20 to catch more subtle flares
             'plain_language': 'Your shooting elbow is sticking out too far from your body. This reduces accuracy and consistency.',
             'requires_visibility': [],  # Remove visibility requirements - elbow flare can be detected from any angle
@@ -825,7 +821,7 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
         'guide_hand_thumb_flick': {
             'description': 'Guide hand thumb interfering with ball trajectory during follow-through',
             'check_phase': 'Follow-Through',
-            'threshold': 10,  # ULTRA-LOWERED from 15 to 10 for very subtle movements
+            'threshold': 20,  # Higher threshold for follow-through interference
             'plain_language': 'Your guide hand thumb is interfering with the shot during follow-through. Keep your thumb passive - no flicking motion.',
             'requires_visibility': ['guide_hand'],
             'camera_angles': ['right_side_view', 'front_view', 'angled_view', 'left_side_view']  # Added left_side_view - thumb flicks can be visible from multiple angles
@@ -878,17 +874,6 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
             'requires_visibility': ['full_body_side'],
             'camera_angles': ['left_side_view', 'right_side_view', 'front_view']
         },
-        # 🎯 NEW FEATURE: Shoulder Alignment & Squaring Detection (EASILY DISABLED)
-        # Set ENABLE_SHOULDER_ALIGNMENT_DETECTION = False to disable this feature
-        'poor_shoulder_alignment': {
-            'description': 'Shoulders not properly squared to basket for optimal shooting',
-            'check_phase': 'Load_Release',  # Check during setup and release phases
-            'threshold': 20,  # Degrees of deviation from ideal squaring
-            'plain_language': 'Your shoulders aren\'t properly squared to the basket. Face the rim directly for better accuracy and consistency.',
-            'requires_visibility': ['shoulders'],
-            'camera_angles': ['front_view', 'angled_view'],  # Best detected from front/angled views
-            'feature_flag': 'ENABLE_SHOULDER_ALIGNMENT_DETECTION'  # Easy disable mechanism
-        },
         'follow_through_timing': {
             'description': 'Follow-through timing could be improved for better consistency',
             'check_phase': 'Follow-Through',
@@ -903,79 +888,11 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
     # Special handling for 'ANY' phase flaws - check them across all phases
     all_frames_for_any_phase = []
     any_phase_flaws_processed = set()  # Track which 'ANY' phase flaws have been processed
-    detected_flaws = set()  # Track which flaws have already been detected to prevent duplicates
     
     for i, frame_data in enumerate(processed_frames_data):
         if frame_data.metrics:
             all_frames_for_any_phase.append((i, frame_data))
     
-    # Handle special multi-phase flaws first (like Load_Release)
-    special_phase_flaws = {}
-    for flaw_key, flaw_config in flaw_detectors.items():
-        # 🎯 FEATURE FLAG CHECK: Skip disabled features
-        if 'feature_flag' in flaw_config:
-            feature_flag_name = flaw_config['feature_flag']
-            if feature_flag_name in globals() and not globals()[feature_flag_name]:
-                logging.debug(f"Skipping {flaw_key}: feature flag {feature_flag_name} is disabled")
-                continue
-        
-        if flaw_config['check_phase'] == 'Load_Release':
-            # Collect frames from both Load/Dip and Release phases
-            combined_frames = []
-            for phase in shot_phases:
-                if phase.name in ['Load/Dip', 'Release']:
-                    for i, frame_data in enumerate(processed_frames_data):
-                        if phase.start_frame <= i <= phase.end_frame and frame_data.metrics:
-                            combined_frames.append((i, frame_data))
-            special_phase_flaws[flaw_key] = combined_frames
-    
-    # Process special multi-phase flaws first
-    for flaw_key, combined_frames in special_phase_flaws.items():
-        if flaw_key in detected_flaws:
-            continue
-            
-        flaw_config = flaw_detectors[flaw_key]
-        
-        # Check if we can actually observe this flaw from the current camera angle
-        can_observe = True
-        
-        # Check camera angle compatibility
-        if visibility_info['camera_angle'] not in flaw_config['camera_angles']:
-            can_observe = False
-            logging.debug(f"Skipping {flaw_key}: camera angle {visibility_info['camera_angle']} not suitable")
-        
-        # Check required feature visibility
-        for required_feature in flaw_config['requires_visibility']:
-            if not visibility_info['visible_features'].get(required_feature, False):
-                can_observe = False
-                logging.debug(f"Skipping {flaw_key}: required feature {required_feature} not visible")
-                break
-        
-        if not can_observe:
-            continue
-            
-        flaw_detected, worst_frame, severity = detect_specific_flaw(
-            combined_frames, flaw_key, flaw_config, ideal_shot_data, shot_phases, shot_start_frame
-        )
-        
-        # Only add flaws with meaningful severity (lowered threshold for core fundamentals)
-        if flaw_detected and severity >= 5:  # Lowered from 8 to 5 for better detection
-            detected_flaws.add(flaw_key)  # Mark as detected to prevent duplicates
-            # FIXED: Convert relative frame index to absolute frame number
-            absolute_frame_number = shot_start_frame + worst_frame
-            detailed_flaws.append({
-                'flaw_type': flaw_key,
-                'frame_number': absolute_frame_number,
-                'phase': 'Load/Dip & Release',  # Combined phase name for multi-phase flaws
-                'severity': severity,
-                'description': flaw_config['description'],
-                'plain_language': flaw_config['plain_language'],
-                'coaching_tip': get_coaching_tip(flaw_key),
-                'drill_suggestion': get_drill_suggestion(flaw_key),
-                'camera_context': f"Observed from {visibility_info['camera_angle'].replace('_', ' ')}"
-            })
-    
-    # Now process regular phase-specific flaws
     for phase in shot_phases:
         phase_frames = []
         for i, frame_data in enumerate(processed_frames_data):
@@ -987,17 +904,6 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
             
         # Check for specific flaws in this phase, but only if we can observe them
         for flaw_key, flaw_config in flaw_detectors.items():
-            # 🎯 FEATURE FLAG CHECK: Skip disabled features
-            if 'feature_flag' in flaw_config:
-                feature_flag_name = flaw_config['feature_flag']
-                if feature_flag_name in globals() and not globals()[feature_flag_name]:
-                    logging.debug(f"Skipping {flaw_key}: feature flag {feature_flag_name} is disabled")
-                    continue
-            
-            # Skip if already processed
-            if flaw_key in detected_flaws:
-                continue
-                
             # Handle 'ANY' phase flaws - check across all frames, but only once
             if flaw_config['check_phase'] == 'ANY':
                 if flaw_key in any_phase_flaws_processed:
@@ -1005,9 +911,6 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
                 any_phase_flaws_processed.add(flaw_key)
                 current_phase_frames = all_frames_for_any_phase
                 current_phase_name = 'Shot Motion'  # Generic name for ANY phase flaws
-            # Skip multi-phase flaws as they were handled above
-            elif flaw_config['check_phase'] == 'Load_Release':
-                continue  # Already processed above
             elif flaw_config['check_phase'] != phase.name:
                 continue
             else:
@@ -1038,7 +941,6 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
             
             # Only add flaws with meaningful severity (lowered threshold for core fundamentals)
             if flaw_detected and severity >= 5:  # Lowered from 8 to 5 for better detection
-                detected_flaws.add(flaw_key)  # Mark as detected to prevent duplicates
                 # FIXED: Convert relative frame index to absolute frame number
                 absolute_frame_number = shot_start_frame + worst_frame
                 detailed_flaws.append({
@@ -1068,110 +970,6 @@ def analyze_detailed_flaws(processed_frames_data, ideal_shot_data, shot_phases, 
     else:
         return []
 
-def calculate_illustration_quality(frame_num, frame_data, severity, flaw_key, shot_phases):
-    """Calculate how well a frame illustrates a specific flaw for coaching purposes"""
-    score = 0
-    
-    # Base score starts with pose quality
-    if hasattr(frame_data, 'pose_landmarks') and frame_data.pose_landmarks:
-        score += 20  # Good pose detected
-    
-    # Phase-specific scoring - mid-phase frames are often more illustrative
-    if shot_phases:
-        for phase in shot_phases:
-            if phase.start_frame <= frame_num <= phase.end_frame:
-                phase_progress = (frame_num - phase.start_frame) / max(1, phase.end_frame - phase.start_frame)
-                
-                # Different flaw types benefit from different phase moments
-                if flaw_key == 'elbow_flare':
-                    # Elbow flare is most instructive during Load/Dip when ball is in hands
-                    # and early Release when positioning is critical
-                    if phase.name == 'Load/Dip' and 0.4 <= phase_progress <= 0.9:
-                        score += 40  # HIGHEST priority: Deep load phase when elbow positioning is crucial
-                    elif phase.name == 'Load/Dip':
-                        score += 25  # Good illustration during any loading phase
-                    elif phase.name == 'Release' and phase_progress <= 0.5:
-                        score += 35  # Very high priority: Early release when ball still controlled
-                    elif phase.name == 'Release' and phase_progress <= 0.7:
-                        score += 20  # Moderate priority: Mid-release
-                    # Note: Prioritizing phases when ball is in hands for better instruction
-                        
-                elif flaw_key in ['insufficient_knee_bend', 'excessive_knee_bend']:
-                    # Knee bend is most illustrative at deepest point (Load/Dip phase)
-                    if phase.name == 'Load/Dip' and 0.4 <= phase_progress <= 0.8:
-                        score += 35
-                    elif phase.name == 'Load/Dip':
-                        score += 10
-                        
-                elif flaw_key == 'poor_wrist_snap':
-                    # Wrist snap is best shown during follow-through
-                    if phase.name == 'Follow-Through' and 0.2 <= phase_progress <= 0.6:
-                        score += 30
-                    elif phase.name == 'Follow-Through':
-                        score += 15
-                        
-                elif flaw_key == 'guide_hand_thumb_flick':
-                    # Thumb flick is most visible AFTER ball release during follow-through
-                    # ABSOLUTE EXTREME LATE BIAS: Only target final 5% of Follow-Through when ball is definitely gone
-                    if phase.name == 'Follow-Through' and 0.95 <= phase_progress <= 1.0:
-                        score += 300  # ABSOLUTE MAXIMUM for final 5% of follow-through (95-100%)
-                    elif phase.name == 'Follow-Through' and 0.9 <= phase_progress < 0.95:
-                        score += 200  # ULTRA-MAXIMUM for near-end follow-through (90-95%)
-                    elif phase.name == 'Follow-Through' and 0.8 <= phase_progress < 0.9:
-                        score += 120  # EXTREME illustration - very late follow-through (80-90%)
-                    elif phase.name == 'Follow-Through' and 0.7 <= phase_progress < 0.8:
-                        score += 50   # Good illustration - late follow-through (70-80%)
-                    elif phase.name == 'Follow-Through' and 0.6 <= phase_progress < 0.7:
-                        score += 20   # Low illustration - mid-late follow-through (60-70%)
-                    elif phase.name == 'Follow-Through' and 0.5 <= phase_progress < 0.6:
-                        score -= 10   # Penalty for mid follow-through (50-60%)
-                    elif phase.name == 'Follow-Through' and 0.4 <= phase_progress < 0.5:
-                        score -= 50   # Strong penalty for early follow-through (40-50%)
-                    elif phase.name == 'Follow-Through' and phase_progress < 0.4:
-                        score -= 100  # DEVASTATING penalty for very early follow-through (<40%)
-                    # Note: ABSOLUTE focus on final 5% of Follow-Through phase (95-100%)
-                        
-                elif flaw_key == 'guide_hand_on_top':
-                    # Guide hand "on top" is most instructive during Load/Dip when ball positioning is set
-                    # and early Release when hand placement affects shot mechanics
-                    if phase.name == 'Load/Dip' and 0.3 <= phase_progress <= 0.8:
-                        score += 45  # HIGHEST priority: Load phase when guide hand positioning is established
-                    elif phase.name == 'Load/Dip':
-                        score += 30  # High priority for any loading phase
-                    elif phase.name == 'Release' and phase_progress <= 0.4:
-                        score += 35  # Very high priority: Early release when ball still controlled
-                    elif phase.name == 'Release' and phase_progress <= 0.6:
-                        score += 20  # Moderate priority: Mid-early release
-                    # Note: Focusing on ball-in-hands phases for maximum instructional value
-                        
-                elif flaw_key.startswith('guide_hand') and flaw_key != 'guide_hand_on_top':
-                    # Other guide hand issues (thumb flick, interference) - different timing
-                    if phase.name == 'Release' and 0.4 <= phase_progress <= 0.8:
-                        score += 30
-                    elif phase.name == 'Release':
-                        score += 15
-                        
-                elif flaw_key == 'balance_issues':
-                    # Balance issues are clearest during loading and release
-                    if phase.name in ['Load/Dip', 'Release'] and 0.3 <= phase_progress <= 0.7:
-                        score += 25
-                        
-                elif flaw_key == 'shot_lacks_fluidity':
-                    # Fluidity issues can be seen throughout, but mid-phases are clearest
-                    if 0.3 <= phase_progress <= 0.7:
-                        score += 20
-                break
-    
-    # Severity contribution (higher severity may mean clearer flaw visibility)
-    score += min(severity * 0.5, 15)  # Cap severity contribution
-    
-    # Landmark visibility bonus - more visible landmarks = better illustration
-    if hasattr(frame_data, 'metrics') and frame_data.metrics:
-        visible_metrics = len([v for v in frame_data.metrics.values() if v is not None])
-        score += min(visible_metrics * 2, 10)
-    
-    return score
-
 def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, shot_phases=None, shot_start_frame=0):
     """Detect if a specific flaw exists in the given frames with improved discernment
     
@@ -1180,18 +978,13 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
     """
     worst_severity = 0
     worst_frame = None
-    best_illustration_frame = None  # Frame that best illustrates the flaw for coaching
-    best_illustration_score = 0    # Combined score for illustration quality
     flaw_detected = False
     flaw_evidence_count = 0  # Count frames showing the flaw
     severity_values = []  # Track severity across frames for statistical analysis
-    frame_scores = []  # Track frames with their scores for better selection
     
     # Minimum frames required to confirm a flaw (prevents false positives)
-    # ULTRA-LOWERED requirements for subtle flaws like thumb flick
-    if flaw_key == 'guide_hand_thumb_flick':
-        min_evidence_frames = 1  # Accept even a single frame for thumb flick (it can be very brief)
-    elif flaw_key in ['elbow_flare', 'insufficient_knee_bend', 'excessive_knee_bend', 'poor_wrist_snap']:
+    # LOWERED requirements to make original flaws more detectable
+    if flaw_key in ['elbow_flare', 'insufficient_knee_bend', 'excessive_knee_bend', 'poor_wrist_snap']:
         min_evidence_frames = max(1, len(phase_frames) // 6)  # Very lenient for core fundamentals
     else:
         min_evidence_frames = max(2, len(phase_frames) // 4)  # Slightly more lenient for other flaws
@@ -1226,15 +1019,15 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                         ideal_min = ideal_shot_data['load_knee_angle']['min']  # 110°
                         actual = frame_data.metrics['knee_angle']
                         
-                        # REFINED INSUFFICIENT KNEE BEND: Stricter threshold at 130°
-                        # Only flag insufficient knee bend when angle > 130° (was 135°)
-                        if actual > 130:  # Stricter: flag at 130° threshold
+                        # REFINED INSUFFICIENT KNEE BEND: Much stricter threshold
+                        # Only flag truly insufficient knee bend (>25° above minimum)
+                        if actual > ideal_min + 25:  # Must be >135° to flag (was >125°)
                             # CONSERVATIVE SEVERITY: Only for genuinely problematic form
-                            severity_factor = (actual - ideal_min - 15) * 1.2  # Adjusted calculation
+                            severity_factor = (actual - ideal_min - 20) * 1.2  # Reduced sensitivity
                             severity = min(severity_factor, 40)  # Lower max severity
-                            logging.info(f"INSUFFICIENT KNEE BEND DETECTED - Frame {frame_num}: angle={actual:.1f}° (need <130°), severity={severity:.1f}")
+                            logging.info(f"INSUFFICIENT KNEE BEND DETECTED - Frame {frame_num}: angle={actual:.1f}° (need <{ideal_min + 25}°), severity={severity:.1f}")
                         else:
-                            logging.debug(f"KNEE BEND OK - Frame {frame_num}: angle={actual:.1f}° within acceptable range (>130° would flag)")
+                            logging.debug(f"KNEE BEND OK - Frame {frame_num}: angle={actual:.1f}° within acceptable range (>{ideal_min + 25}° would flag)")
                             
                 elif flaw_key == 'excessive_knee_bend':
                     if 'knee_angle' in frame_data.metrics:
@@ -1310,172 +1103,104 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                     logging.debug(f"WRIST SNAP OK - Frame {frame_num} (peak Follow-Through): angle={actual:.1f}° within acceptable range")
                     
         elif flaw_key == 'elbow_flare':
-            # CORRECTED ELBOW FLARE DETECTION - Focus on Load/Dip AND Release phases where it's most problematic
+            # REFINED ELBOW FLARE DETECTION - Focus on Release phase only with stricter thresholds
             # Skip frames before shot motion begins
             if frame_num < shot_start_frame:
                 continue
             
-            # PROPER PHASE RESTRICTION: Check during Load/Dip AND Release phases (NOT Follow-Through)
-            is_analysis_phase = False
+            # STRICT PHASE RESTRICTION: Only analyze during Release phase (not Follow-Through)
+            is_release_phase = False
             current_phase_name = "Unknown"
             
             if shot_phases:
                 for phase in shot_phases:
                     if phase.start_frame <= frame_num <= phase.end_frame:
                         current_phase_name = phase.name
-                        # Accept Load/Dip and Release phases where elbow flare is most problematic
-                        if phase.name in ['Load/Dip', 'Release']:
-                            is_analysis_phase = True
+                        if phase.name == 'Release':  # ONLY Release phase
+                            is_release_phase = True
                         break
-            else:
-                # If no phases detected, analyze all frames after shot start
-                is_analysis_phase = True
-                current_phase_name = "Shot Motion"
             
-            # Skip Follow-Through phase where some elbow movement is natural
-            if not is_analysis_phase:
-                logging.debug(f"ELBOW FLARE SKIPPED - Frame {frame_num}: in {current_phase_name} phase, analyzing Load/Dip and Release only")
+            # Skip if not in Release phase - eliminates false positives from natural follow-through movement
+            if not is_release_phase:
+                logging.debug(f"ELBOW FLARE SKIPPED - Frame {frame_num}: in {current_phase_name} phase, only analyzing Release phase")
                 continue
                 
-            # LENIENT THRESHOLDS for obvious flaws during critical phases
+            # STRICTER THRESHOLDS for more reliable detection
             frame_severity = 0
             
             # Side view detection: check elbow extension angle
             if 'elbow_angle' in frame_data.metrics:
                 ideal_range = ideal_shot_data['release_elbow_angle']
                 actual = frame_data.metrics['elbow_angle']
-                # LENIENT: Flag obvious extension issues (>12° below ideal for clear coaching value)
-                if actual < ideal_range['min'] - 12:  # Further reduced for Load/Release detection
-                    side_severity = min((ideal_range['min'] - actual) * 1.8, 60)  # Enhanced sensitivity
+                # STRICTER: Only flag severe extension issues (>20° below ideal)
+                if actual < ideal_range['min'] - 20:  # Much stricter than before
+                    side_severity = min((ideal_range['min'] - actual) * 1.2, 50)  # Reduced max severity
                     frame_severity = max(frame_severity, side_severity)
-                    logging.info(f"ELBOW FLARE DETECTED - Side view: actual={actual:.1f}°, ideal_min={ideal_range['min']}°, severity={side_severity:.1f}")
-                else:
-                    logging.debug(f"ELBOW EXTENSION OK - Side view: actual={actual:.1f}°, ideal_min={ideal_range['min']}°")
             
-            # Front view detection: lateral elbow deviation with very lenient thresholds for obvious flaws
+            # Front view detection: lateral elbow deviation with STRICTER thresholds
             if 'elbow_flare_front_view' in frame_data.metrics:
                 elbow_flare_ratio = frame_data.metrics['elbow_flare_front_view']
-                # VERY LENIENT THRESHOLD: Catch any noticeable elbow flares (>15% for obvious coaching value)
-                if elbow_flare_ratio > 15:  # Very lenient for Load/Release detection
-                    front_view_severity = min((elbow_flare_ratio - 12) * 2.5, 65)  # Enhanced sensitivity
+                # STRICTER THRESHOLD: Only flag significant lateral deviation (>30% instead of >25%)
+                if elbow_flare_ratio > 30:  # Increased from 25% for fewer false positives
+                    front_view_severity = min((elbow_flare_ratio - 25) * 1.5, 50)  # Reduced sensitivity
                     frame_severity = max(frame_severity, front_view_severity)
-                    logging.info(f"ELBOW FLARE DETECTED - Front view: ratio={elbow_flare_ratio:.1f}%, severity={front_view_severity:.1f}")
+                    logging.info(f"ELBOW FLARE DETECTED - Front view: ratio={elbow_flare_ratio}%, severity={front_view_severity}")
                 else:
-                    logging.debug(f"ELBOW FLARE NOT DETECTED - Front view: ratio={elbow_flare_ratio:.1f}% below threshold (15%)")
+                    logging.debug(f"ELBOW FLARE NOT DETECTED - Front view: ratio={elbow_flare_ratio}% below strict threshold (30%)")
                     
-            # Alternative front view: lateral angle with very lenient threshold
+            # Alternative front view: lateral angle with STRICTER threshold
             if 'elbow_lateral_angle' in frame_data.metrics:
                 lateral_angle = frame_data.metrics['elbow_lateral_angle']
-                # VERY LENIENT THRESHOLD: Flag any noticeable lateral deviations (>6° for obvious coaching value)
-                if lateral_angle > 6:  # Very lenient for Load/Release detection
-                    angle_severity = min((lateral_angle - 4) * 5.0, 60)  # Enhanced sensitivity
+                # STRICTER THRESHOLD: Only flag angles >15° (increased from >10°)
+                if lateral_angle > 15:  # Increased threshold for fewer false positives
+                    angle_severity = min((lateral_angle - 12) * 2.5, 45)  # Reduced sensitivity
                     frame_severity = max(frame_severity, angle_severity)
-                    logging.info(f"ELBOW FLARE DETECTED - Lateral angle: {lateral_angle:.1f}°, severity={angle_severity:.1f}")
+                    logging.info(f"ELBOW FLARE DETECTED - Lateral angle: {lateral_angle}°, severity={angle_severity}")
                 else:
-                    logging.debug(f"ELBOW FLARE NOT DETECTED - Lateral angle: {lateral_angle:.1f}° below threshold (6°)")
+                    logging.debug(f"ELBOW FLARE NOT DETECTED - Lateral angle: {lateral_angle}° below strict threshold (15°)")
             
-            # Only assign severity if we detected meaningful flare in Load/Release phases
+            # Only assign severity if we detected meaningful flare in this Release phase frame
             if frame_severity > 0:
                 severity = frame_severity
-                logging.info(f"ELBOW FLARE DETECTED - Frame {frame_num} ({current_phase_name} phase): severity={severity:.1f}")
+                logging.info(f"ELBOW FLARE DETECTED - Frame {frame_num} (Release phase): severity={severity}")
             else:
-                logging.debug(f"NO ELBOW FLARE - Frame {frame_num} ({current_phase_name} phase): passed lenient thresholds")
+                logging.debug(f"NO ELBOW FLARE - Frame {frame_num} (Release phase): passed strict thresholds")
                     
         elif flaw_key == 'guide_hand_thumb_flick':
-            # IMPROVED THUMB FLICK DETECTION: Focus on post-release thumb movement
+            # IMPROVED THUMB FLICK DETECTION: Balance sensitivity with accuracy
             if 'guide_hand_thumb_angle' in frame_data.metrics:
                 actual = frame_data.metrics['guide_hand_thumb_angle']
                 
-                # FOCUSED TIMING: Prioritize Follow-Through phase where thumb movement is most visible
+                # EXPANDED TIMING: Analyze during Release AND Follow-Through phases (not just Follow-Through)
                 current_phase_name = None
                 is_relevant_phase = False
-                phase_bonus = 0  # Bonus for frames in optimal phase timing
                 
                 if shot_phases:
                     for phase in shot_phases:
-                        # STRICT PHASE RESTRICTION: Only detect thumb flick in Follow-Through phase
-                        # This prevents detection during Release phase when ball is still in contact
-                        if phase.name == 'Follow-Through' and phase.start_frame <= frame_num <= phase.end_frame:
+                        if phase.name in ['Release', 'Follow-Through'] and phase.start_frame <= frame_num <= phase.end_frame:
                             current_phase_name = phase.name
                             is_relevant_phase = True
-                            
-                            # Calculate phase progress for timing bonus
-                            phase_progress = (frame_num - phase.start_frame) / max(1, phase.end_frame - phase.start_frame)
-                            
-                            # ULTRA-EXTREME LATE BIAS: Give massive bonus for very end of follow-through only
-                            if phase.name == 'Follow-Through' and 0.95 <= phase_progress <= 1.0:
-                                phase_bonus = 200  # ABSOLUTE MAXIMUM bonus for final 5% (95-100%) 
-                            elif phase.name == 'Follow-Through' and 0.9 <= phase_progress < 0.95:
-                                phase_bonus = 150  # ULTRA-MAXIMUM bonus for near-end (90-95%)
-                            elif phase.name == 'Follow-Through' and 0.8 <= phase_progress < 0.9:
-                                phase_bonus = 100  # EXTREME bonus for very late follow-through (80-90%)
-                            elif phase.name == 'Follow-Through' and 0.7 <= phase_progress < 0.8:
-                                phase_bonus = 40   # Strong bonus for late follow-through (70-80%)
-                            elif phase.name == 'Follow-Through' and 0.6 <= phase_progress < 0.7:
-                                phase_bonus = 10   # Low bonus for mid-late follow-through (60-70%)
-                            elif phase.name == 'Follow-Through' and 0.5 <= phase_progress < 0.6:
-                                phase_bonus = -20  # Strong penalty for mid follow-through (50-60%)
-                            elif phase.name == 'Follow-Through' and 0.4 <= phase_progress < 0.5:
-                                phase_bonus = -40  # Severe penalty for early follow-through (40-50%)
-                            elif phase.name == 'Follow-Through' and phase_progress < 0.4:
-                                phase_bonus = -100 # DEVASTATING penalty for very early follow-through (<40%)
-                            # Note: ABSOLUTE focus on final 5% of Follow-Through phase (95-100%)
                             break
                 
-                # Skip if not in Follow-Through phase (thumb flick only happens AFTER ball release)
-                # ABSOLUTE RESTRICTION: Only detect in final 10% of Follow-Through phase (90-100%)
+                # Skip if not in Release or Follow-Through phase
                 if not is_relevant_phase:
-                    logging.debug(f"THUMB FLICK SKIPPED - Frame {frame_num}: not in Follow-Through phase (current phase: {current_phase_name or 'Unknown'})")
+                    logging.debug(f"THUMB FLICK SKIPPED - Frame {frame_num}: not in Release/Follow-Through phase")
                     continue
                 
-                # EXTREME RESTRICTION: Only allow detection in final 10% of Follow-Through
-                if shot_phases:
-                    final_phase_only = False
-                    for phase in shot_phases:
-                        if phase.name == 'Follow-Through' and phase.start_frame <= frame_num <= phase.end_frame:
-                            phase_progress = (frame_num - phase.start_frame) / max(1, phase.end_frame - phase.start_frame)
-                            # ABSOLUTE FINAL FRAMES ONLY: Must be in final 10% (90-100%)
-                            if phase_progress >= 0.9:
-                                final_phase_only = True
-                                logging.debug(f"THUMB FLICK ALLOWED - Frame {frame_num}: in final 10% of Follow-Through ({phase_progress:.2f})")
-                            else:
-                                logging.debug(f"THUMB FLICK REJECTED - Frame {frame_num}: too early in Follow-Through ({phase_progress:.2f}, need >=0.9)")
-                            break
+                # BALANCED THRESHOLD: Catch obvious thumb flicks while avoiding false positives
+                # Use 25° threshold (was 35°) to detect clear interference
+                if actual > 25:  # Lowered from 35 to 25 degrees to catch obvious cases
+                    # Enhanced severity calculation - more sensitive to obvious violations
+                    base_severity = (actual - 20) * 1.2  # Start penalty at 20° deviation
+                    severity = min(base_severity, 30)  # Cap at reasonable maximum
                     
-                    if not final_phase_only:
-                        continue  # Skip this frame - not in final 10% of Follow-Through
-                
-                # ULTRA-SENSITIVE THRESHOLD: Catch very subtle thumb movements
-                # Use configured threshold from flaw_config (10°) for ultra-sensitive detection
-                configured_threshold = flaw_config.get('threshold', 10)  # Use config threshold (10°)
-                
-                # ULTRA-SENSITIVE threshold for detecting subtle movements like O'Shea's
-                effective_threshold = configured_threshold * 0.7  # 7° - ultra-sensitive for subtle flicks
-                logging.debug(f"Using ultra-sensitive threshold for thumb flick detection: {effective_threshold:.1f}°")
-                
-                # ALSO check for ANY movement above 5° during Follow-Through (catches very subtle cases)
-                subtle_threshold = 5.0  # Extremely low threshold for barely visible movements
-                
-                if actual > effective_threshold:
-                    # Enhanced severity calculation - more sensitive to any violations
-                    base_severity = (actual - (effective_threshold - 2)) * 1.5  # Start penalty at threshold-2°
-                    severity = min(base_severity + phase_bonus, 40)  # Add phase bonus and cap at reasonable maximum
+                    # Extra penalty for extreme thumb movement (>40°)
+                    if actual > 40:
+                        severity = min(severity + 10, 40)
                     
-                    # Extra penalty for any movement >25°
-                    if actual > 25:
-                        severity = min(severity + 8, 50)
-                    
-                    logging.info(f"THUMB FLICK DETECTED - Frame {frame_num}: {actual:.1f}° > {effective_threshold:.1f}° threshold ({current_phase_name}, progress={phase_progress:.2f}), severity={severity:.1f}")
-                    
-                elif actual > subtle_threshold and current_phase_name == 'Follow-Through' and phase_progress >= 0.3:
-                    # ULTRA-SUBTLE detection for barely visible movements in late follow-through
-                    base_severity = (actual - 3) * 2.0  # High sensitivity multiplier
-                    severity = min(base_severity + phase_bonus, 25)  # Lower cap for subtle movements
-                    
-                    logging.info(f"SUBTLE THUMB FLICK DETECTED - Frame {frame_num}: {actual:.1f}° > {subtle_threshold:.1f}° subtle threshold ({current_phase_name}, progress={phase_progress:.2f}), severity={severity:.1f}")
-                    
+                    logging.info(f"THUMB FLICK DETECTED - Frame {frame_num}: {actual:.1f}° ({current_phase_name}), severity={severity:.1f}")
                 else:
-                    logging.debug(f"NO THUMB FLICK - Frame {frame_num}: {actual:.1f}° within acceptable range (<{effective_threshold:.1f}°, subtle:<{subtle_threshold:.1f}°)")
+                    logging.debug(f"NO THUMB FLICK - Frame {frame_num}: {actual:.1f}° within acceptable range (<25°)")
                     
         elif flaw_key == 'guide_hand_under_ball':
             # PHASE 5 REFINEMENT: Focused detection for ball-supporting violations
@@ -1515,31 +1240,21 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                     logging.debug(f"GUIDE HAND UNDER OK - Frame {frame_num}: vertical={vertical_offset:.1f}, horizontal={horizontal_offset:.1f}")
                     
         elif flaw_key == 'guide_hand_on_top':
-            # TIMING FIX: Guide hand "on top" should be detected during SETUP/LOADING phases, not at release
-            # This flaw occurs when guide hand is improperly positioned on top of ball during ball handling/setup
+            # PHASE 5 REFINEMENT: Precise detection for "on top" positioning violations
             if 'guide_hand_position_angle' in frame_data.metrics and 'guide_hand_vertical_offset' in frame_data.metrics:
-                
-                # PHASE-BASED DETECTION: Focus on Load/Dip and early Release phases where ball is being controlled
-                current_phase_name = None
-                is_relevant_phase = False
-                
+                # STRICT TIMING: Same ±2 frame window as other guide hand detections
+                max_wrist_vel_frame = -1
                 for phase in shot_phases:
-                    if phase.start_frame <= frame_num <= phase.end_frame:
-                        current_phase_name = phase.name
-                        # Detect during setup and loading - NOT during follow-through
-                        if phase.name in ['Load/Dip']:
-                            is_relevant_phase = True
-                        elif phase.name == 'Release':
-                            # Only check early release when ball is still being controlled
-                            phase_progress = (frame_num - phase.start_frame) / max(1, phase.end_frame - phase.start_frame)
-                            if phase_progress <= 0.3:  # Only first 30% of release phase
-                                is_relevant_phase = True
+                    if phase.name == 'Release' and phase.key_moment_frame is not None:
+                        max_wrist_vel_frame = phase.key_moment_frame
                         break
                 
-                # Skip if not in relevant phase (ball control phase)
-                if not is_relevant_phase:
-                    logging.debug(f"GUIDE HAND ON TOP SKIPPED - Frame {frame_num}: not in ball control phase (current phase: {current_phase_name or 'Unknown'})")
-                    continue
+                # TIGHTER TIMING WINDOW: ±2 frames from release (was ±3)
+                if max_wrist_vel_frame != -1:
+                    distance_from_release = abs(frame_num - max_wrist_vel_frame)
+                    if distance_from_release > 2:
+                        logging.debug(f"GUIDE HAND ON TOP SKIPPED - Frame {frame_num}: {distance_from_release} frames from release")
+                        continue
                 
                 vertical_offset = frame_data.metrics['guide_hand_vertical_offset']
                 horizontal_offset = frame_data.metrics.get('guide_hand_horizontal_offset', 0)
@@ -1595,24 +1310,6 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                         # Much stricter threshold - only flag truly excessive velocities
                         if velocity > 600:  # Raised from 400 to 600
                             severity = min((velocity - 600) / 30, 25)  # Conservative severity
-        
-        # 🎯 NEW FEATURE: Poor Shoulder Alignment Detection (EASILY DISABLED)
-        elif flaw_key == 'poor_shoulder_alignment':
-            # Skip if feature is disabled
-            if not ENABLE_SHOULDER_ALIGNMENT_DETECTION:
-                continue
-                
-            # Check if we have shoulder alignment data
-            if 'shoulder_squaring_deviation' in frame_data.metrics:
-                shoulder_deviation = frame_data.metrics['shoulder_squaring_deviation']
-                
-                # Only flag significant deviations from square positioning
-                # Threshold: 20° deviation from ideal (horizontal shoulder line)
-                if shoulder_deviation > 20:  # More than 20° deviation from square
-                    severity = min((shoulder_deviation - 20) / 2, 30)  # Conservative severity scaling
-                    logging.info(f"POOR SHOULDER ALIGNMENT DETECTED - Frame {frame_num}: {shoulder_deviation:.1f}° deviation, severity={severity:.1f}")
-                else:
-                    logging.debug(f"SHOULDER ALIGNMENT OK - Frame {frame_num}: {shoulder_deviation:.1f}° deviation (within acceptable range)")
                     
         # Remove the problematic inconsistent_release_point check for single shots
         # Remove rushing_shot and follow_through_early_drop as they need multiple shots for context
@@ -1620,28 +1317,9 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
         if severity > 0:
             flaw_evidence_count += 1
             severity_values.append(severity)
-            
-            # Calculate illustration quality score for this frame
-            illustration_score = calculate_illustration_quality(
-                frame_num, frame_data, severity, flaw_key, shot_phases
-            )
-            
-            # Store frame with combined score
-            frame_scores.append({
-                'frame_num': frame_num,
-                'severity': severity,
-                'illustration_score': illustration_score,
-                'combined_score': severity * 0.4 + illustration_score * 0.6  # Initial balanced weighting
-            })
-            
             if severity > worst_severity:
                 worst_severity = severity
                 worst_frame = frame_num
-                
-            # Track best illustration frame
-            if illustration_score > best_illustration_score:
-                best_illustration_score = illustration_score
-                best_illustration_frame = frame_num
     
     # ENHANCED CONSISTENCY REQUIREMENTS - Apply stricter standards for elbow flare
     if flaw_evidence_count >= min_evidence_frames and severity_values:
@@ -1722,58 +1400,7 @@ def detect_specific_flaw(phase_frames, flaw_key, flaw_config, ideal_shot_data, s
                 flaw_detected = True
                 worst_severity = avg_severity
     
-    # Select the best frame for illustration (not just highest severity)
-    selected_frame = worst_frame  # Default fallback
-    
-    if flaw_detected and frame_scores:
-        # ENHANCED FRAME SELECTION FOR COACHING: Prioritize illustration quality for key fundamentals
-        
-        # For elbow flare and other core coaching flaws, heavily favor illustration clarity
-        if flaw_key in ['elbow_flare', 'guide_hand_thumb_flick', 'poor_wrist_snap']:
-            # ULTRA-EXTREME COACHING FOCUS FOR THUMB FLICK: Maximum preference for late follow-through illustration
-            if flaw_key == 'guide_hand_thumb_flick':
-                # 99% illustration quality, 1% severity for thumb flick coaching
-                # This ensures we get the LATEST follow-through frames showing actual "flicking" motion
-                for frame_data in frame_scores:
-                    frame_data['combined_score'] = (frame_data['severity'] * 0.01) + (frame_data['illustration_score'] * 0.99)
-                logging.info(f"THUMB FLICK ULTRA-EXTREME COACHING FRAME SELECTION: Almost entirely prioritizing illustration clarity (99%) over severity (1%)")
-            else:
-                # 75% illustration quality, 25% severity for other core fundamentals
-                for frame_data in frame_scores:
-                    frame_data['combined_score'] = (frame_data['severity'] * 0.25) + (frame_data['illustration_score'] * 0.75)
-                logging.info(f"COACHING FRAME SELECTION for {flaw_key}: Prioritizing illustration clarity (75%) over severity (25%)")
-        
-        else:
-            # Balanced approach for other flaws (60% illustration, 40% severity)
-            for frame_data in frame_scores:
-                frame_data['combined_score'] = (frame_data['severity'] * 0.4) + (frame_data['illustration_score'] * 0.6)
-            
-            logging.info(f"BALANCED FRAME SELECTION for {flaw_key}: Prioritizing illustration quality (60%) over severity (40%)")
-        
-        # Sort frames by recalculated combined score
-        frame_scores.sort(key=lambda x: x['combined_score'], reverse=True)
-        
-        # Use the frame with highest combined score for better coaching value
-        best_frame_data = frame_scores[0]
-        selected_frame = best_frame_data['frame_num']
-        
-        # Additional validation: ensure the selected frame has meaningful illustration value
-        if best_frame_data['illustration_score'] < 20:
-            logging.warning(f"FRAME SELECTION WARNING for {flaw_key}: Best frame has low illustration score ({best_frame_data['illustration_score']:.1f})")
-            # Try to find a frame with better illustration score even if lower severity
-            better_illustration_frames = [f for f in frame_scores if f['illustration_score'] >= 25]
-            if better_illustration_frames:
-                best_frame_data = better_illustration_frames[0]
-                selected_frame = best_frame_data['frame_num']
-                logging.info(f"FRAME SELECTION ADJUSTED for {flaw_key}: Using frame {selected_frame} with better illustration score")
-        
-        logging.info(f"FINAL FRAME SELECTION for {flaw_key}: Selected frame {selected_frame} "
-                    f"(severity: {best_frame_data['severity']:.1f}, "
-                    f"illustration: {best_frame_data['illustration_score']:.1f}, "
-                    f"combined: {best_frame_data['combined_score']:.1f}) "
-                    f"over worst severity frame {worst_frame}")
-    
-    return flaw_detected, selected_frame, worst_severity
+    return flaw_detected, worst_frame, worst_severity
 
 def get_coaching_tip(flaw_key):
     """Get specific coaching tip for each flaw type"""
@@ -2520,17 +2147,11 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                                     elbow_flare_ratio = (elbow_deviation_x / shoulder_width) * 100
                                     # Store elbow flare ratio for front-view analysis
                                     frame_metrics['elbow_flare_front_view'] = elbow_flare_ratio
-                                    # DEBUG: Log elbow flare ratios to understand what values we're getting
-                                    if current_frame_idx % 10 == 0:  # Log every 10th frame to avoid spam
-                                        logging.debug(f"Frame {current_frame_idx}: elbow_flare_ratio = {elbow_flare_ratio:.1f}%")
                                     
                                     # Also calculate elbow position angle relative to body centerline
                                     elbow_vector = [r_elbow[0] - shoulder_midpoint[0], r_elbow[1] - shoulder_midpoint[1]]
                                     elbow_lateral_angle = abs(np.degrees(np.arctan2(elbow_vector[0], elbow_vector[1])))
                                     frame_metrics['elbow_lateral_angle'] = elbow_lateral_angle
-                                    # DEBUG: Log lateral angles too
-                                    if current_frame_idx % 10 == 0:
-                                        logging.debug(f"Frame {current_frame_idx}: elbow_lateral_angle = {elbow_lateral_angle:.1f}°")
                         except:
                             pass
                         
@@ -2559,32 +2180,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                                     frame_metrics['body_lean_angle'] = body_lean
                         except:
                             pass
-                        
-                        # 🎯 NEW FEATURE: Shoulder Alignment Detection (EASILY DISABLED)
-                        if ENABLE_SHOULDER_ALIGNMENT_DETECTION:
-                            try:
-                                if r_shoulder and l_shoulder:
-                                    # Calculate shoulder line angle relative to horizontal (camera frame)
-                                    shoulder_vector = [l_shoulder[0] - r_shoulder[0], l_shoulder[1] - r_shoulder[1]]
-                                    shoulder_line_angle = np.degrees(np.arctan2(shoulder_vector[1], shoulder_vector[0]))
-                                    
-                                    # Normalize to 0-180° range (absolute deviation from horizontal)
-                                    shoulder_line_angle = abs(shoulder_line_angle)
-                                    if shoulder_line_angle > 90:
-                                        shoulder_line_angle = 180 - shoulder_line_angle
-                                    
-                                    # Store shoulder alignment metric (0° = perfectly square, higher = more angled)
-                                    frame_metrics['shoulder_alignment_angle'] = shoulder_line_angle
-                                    
-                                    # Also calculate shoulder squaring relative to assumed basket direction
-                                    # For front/angled views: basket is typically straight ahead (perpendicular to shoulders)
-                                    # Ideal shoulder angle should be close to 0° (horizontal line)
-                                    frame_metrics['shoulder_squaring_deviation'] = shoulder_line_angle
-                                    
-                                    logging.debug(f"Shoulder alignment: {shoulder_line_angle:.1f}° deviation from square")
-                            except Exception as e:
-                                logging.debug(f"Shoulder alignment calculation failed: {e}")
-                                pass
                         
                         # Release point tracking for consistency analysis
                         try:
@@ -2765,59 +2360,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         fluidity_analysis = analyze_advanced_shot_fluidity(processed_frames_data, fps)
         logging.info(f"Fluidity analysis complete. Overall score: {fluidity_analysis['overall_fluidity_score']:.1f}")
         
-        # ENHANCED: Always include detailed fluidity analysis in results for permanent visibility
-        detailed_fluidity_analysis = {
-            'overall_fluidity_score': fluidity_analysis['overall_fluidity_score'],
-            'analysis_summary': f"Motion fluidity analysis complete. Overall score: {fluidity_analysis['overall_fluidity_score']:.1f}/100",
-            'acceleration_spikes': [],
-            'rhythm_breaks': [],
-            'velocity_anomalies': [],
-            'motion_quality_details': {}
-        }
-        
-        # Extract detailed acceleration spikes for permanent display
-        acceleration_spikes = fluidity_analysis['motion_flow_analysis'].get('acceleration_analysis', {}).get('acceleration_spikes', [])
-        for spike in acceleration_spikes:
-            detailed_fluidity_analysis['acceleration_spikes'].append({
-                'frame': spike['frame'],
-                'joint': spike['joint'],
-                'severity': round(spike['severity'], 1),
-                'description': f"Jerky movement detected in {spike['joint']} at frame {spike['frame']} (severity: {spike['severity']:.1f})"
-            })
-        
-        # Extract detailed rhythm breaks for permanent display  
-        rhythm_breaks = fluidity_analysis['motion_flow_analysis'].get('rhythm_analysis', {}).get('rhythm_breaks', [])
-        for break_point in rhythm_breaks:
-            detailed_fluidity_analysis['rhythm_breaks'].append({
-                'frame': break_point['frame'],
-                'type': break_point['type'],
-                'severity': round(break_point['severity'], 1),
-                'velocity_change': round(break_point['velocity_change'], 1),
-                'description': f"Rhythm break: {break_point['type']} at frame {break_point['frame']} (severity: {break_point['severity']:.1f})"
-            })
-        
-        # Extract velocity anomalies for permanent display
-        velocity_analysis = fluidity_analysis['motion_flow_analysis'].get('velocity_analysis', {})
-        abrupt_speed_changes = velocity_analysis.get('abrupt_speed_changes', [])
-        for change in abrupt_speed_changes:
-            detailed_fluidity_analysis['velocity_anomalies'].append({
-                'frame': change['frame'],
-                'joint': change['joint'],
-                'severity': round(change['severity'], 1),
-                'velocity_change': round(change['velocity_change'], 1),
-                'description': f"Abrupt speed change in {change['joint']} at frame {change['frame']} (severity: {change['severity']:.1f})"
-            })
-        
-        # Add motion quality summary
-        detailed_fluidity_analysis['motion_quality_details'] = {
-            'velocity_smoothness_score': velocity_analysis.get('velocity_smoothness_score', 100),
-            'acceleration_smoothness_score': fluidity_analysis['motion_flow_analysis'].get('acceleration_analysis', {}).get('acceleration_smoothness_score', 100),
-            'rhythm_consistency_score': fluidity_analysis['motion_flow_analysis'].get('rhythm_analysis', {}).get('rhythm_consistency_score', 100),
-            'total_anomalies_detected': len(acceleration_spikes) + len(rhythm_breaks) + len(abrupt_speed_changes)
-        }
-        
-        logging.info(f"Detailed fluidity analysis prepared: {len(acceleration_spikes)} acceleration spikes, {len(rhythm_breaks)} rhythm breaks, {len(abrupt_speed_changes)} velocity anomalies")
-        
         # Enhance detailed_flaws with fluidity insights if fluidity issues detected
         if fluidity_analysis['overall_fluidity_score'] < 70:  # Threshold for concerning fluidity
             # Check if shot_lacks_fluidity was already detected
@@ -2829,12 +2371,14 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
                 worst_severity = 0
                 
                 # Check for acceleration spikes
+                acceleration_spikes = fluidity_analysis['motion_flow_analysis'].get('acceleration_analysis', {}).get('acceleration_spikes', [])
                 for spike in acceleration_spikes:
                     if spike['severity'] > worst_severity:
                         worst_severity = spike['severity']
                         worst_fluidity_frame = spike['frame']
                 
                 # Check for rhythm breaks
+                rhythm_breaks = fluidity_analysis['motion_flow_analysis'].get('rhythm_analysis', {}).get('rhythm_breaks', [])
                 for break_point in rhythm_breaks:
                     if break_point['severity'] > worst_severity:
                         worst_severity = break_point['severity']
@@ -3083,22 +2627,6 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
 
     logging.info(f"Analysis completed for job {job.job_id}")
     
-    # Ensure detailed_fluidity_analysis exists (fallback if fluidity analysis failed)
-    if 'detailed_fluidity_analysis' not in locals():
-        detailed_fluidity_analysis = {
-            'overall_fluidity_score': 85.0,
-            'analysis_summary': "Fluidity analysis not available for this video",
-            'acceleration_spikes': [],
-            'rhythm_breaks': [],
-            'velocity_anomalies': [],
-            'motion_quality_details': {
-                'velocity_smoothness_score': 85,
-                'acceleration_smoothness_score': 85,
-                'rhythm_consistency_score': 85,
-                'total_anomalies_detected': 0
-            }
-        }
-    
     # Return comprehensive results
     return {
         'analysis_report': None,  # Simplified for deployment
@@ -3109,8 +2637,7 @@ def process_video_for_analysis(job: VideoAnalysisJob, ideal_shot_data):
         'shot_phases': shot_phases,
         'feedback_points': feedback_points,
         'improvement_plan_pdf': improvement_plan_pdf,
-        'video_appears_sideways': video_appears_sideways,
-        'detailed_fluidity_analysis': detailed_fluidity_analysis  # ENHANCED: Permanent fluidity details
+        'video_appears_sideways': video_appears_sideways
     }
 
 
